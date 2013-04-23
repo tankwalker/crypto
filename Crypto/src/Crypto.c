@@ -100,7 +100,15 @@ int startMPI(int argc, char *argv[]) {
 	return 0;
 }
 
+
+/*
+ * Programma principale
+ *
+ * Punto di ingresso del programma, da questo potranno essere
+ * chiamati tutti i sotto moduli di
+ */
 int main(){
 	provaMain();
+	//startMPI(0, NULL);
 	return 0;
 }
