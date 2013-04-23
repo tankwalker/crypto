@@ -3,7 +3,7 @@
  Name        : Crypto.c
  Author      : Davide
  Version     :
- Copyright   : 
+ Copyright   :
  Description : Calculate Pi in MPI
  ============================================================================
  */
@@ -48,7 +48,7 @@ void calc_pi(int rank, int num_procs) {
 	}
 }
 
-int main(int argc, char *argv[]) {
+int startMPI(int argc, char *argv[]) {
 	int my_rank; /* rank of process */
 	int num_procs; /* number of processes */
 	int source; /* rank of sender */
@@ -97,5 +97,10 @@ int main(int argc, char *argv[]) {
 	/* shut down MPI */
 	MPI_Finalize();
 
+	return 0;
+}
+
+int main(){
+	provaMain();
 	return 0;
 }
