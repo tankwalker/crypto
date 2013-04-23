@@ -25,38 +25,38 @@ int contain(int pos, int *set, int k) {
 	return 0;
 }
 
-/*
- * Versione ricorsiva della funzione di generazione delle disposizioni
- * sul charset cs nella stringa current
+/**
+ * Calcola tutte le disposizione (con ripetizione) per una stringa
+ * di lunghezza 'n' su un insieme di caratteri 'cs'.
+ * Il cursore 'pos' rappresenta la posizione corrente di lavoro all'interno della stringa.
+ * La funzione ignora tutte le permutazioni degli indici cosiddetti 'riservati' presenti
+ * all'interno dell'insieme 'set' di dimensione 'size'.
+ *
+ * @param cs: Set di caratteri di lavoro
+ * @param k: Dimensione del set di caratteri
+ * @param pos: Cursore di posizione all'intero della stringa
+ * @param current: Stringa di lavoro
+ * @param n: Dimensione della stringa di lavoro
+ * @param set: Insieme contenente tutti gli indici 'riservati'
+ * @param size: Dimensione del set degli indici riservati
  */
-int comb(char *cs, int k, int pos, char *current, int n, int count) {
+int comb(char *cs, int k, int pos, char *current, int n, int size) {
 	int i;
-	//count++;
 
-	if (pos == n) {
+	if (pos >= n) {
 		test(current);
 		return 0;
 	}
 
 	for (i = 0; i < k; i++) {
-		current[pos] = cs[i];
-		//printf("i=%d, pos=%d, current=%s (%p)", i, pos, current, current);
-		comb(cs, k, pos + 1, current, n, count + 1);
-		if (contain(pos, set, 10))
+		if(contain(pos, set, size)){
+			comb(cs, k, pos + 1, current, n, size);
 			break;
+		}
+		current[pos] = cs[i];
+		comb(cs, k, pos + 1, current, n, size);
 	}
 
-	return 0;
-}
-
-/*
- * Scambia di posto due caratteri in una stringa nelle posizioni specificate
- */
-int swap(char *cs, int s, int i) {
-	char tmp;
-	tmp = cs[s];
-	cs[s] = cs[i];
-	cs[i] = tmp;
 	return 0;
 }
 
@@ -65,18 +65,19 @@ int swap(char *cs, int s, int i) {
  * sul charset cs nella stringa current
  */
 int linearComb(char *cs, int k, char *current, int n) {
-	int i, j, q, r;
+	int i, j, q;
 
-	for (i = 0; i < n; i++) {
-		for (j = 0; j < n; j++) {
+	for (i = n-2; i >= 0; i--) {
+		for (j = 0; j < k; j++) {
+
+			current[i] = cs[j];
+
 			for (q = 0; q < k; q++) {
-				for(r=0; r < k; r++){
-					current[j] = cs[r];
-					test(current);
-				}
-				current[i] = cs[q];
+				current[n-1] = cs[q];
+				test(current);
 			}
 		}
+		current[i] = cs[0];
 	}
 
 	return 0;
@@ -100,27 +101,24 @@ int provaMain(int argc, char *argv[]) {
 
 	count = 0;
 
+	// inizializzazione della stringa di lavoro
 	str = malloc(16 * sizeof(char));
 	memset(str, 'a', 16 * sizeof(char));
 	test(str);
 
+	// Inizializzazione del set degli indici riservati
 	set = malloc(10 * sizeof(int));
 	bzero(set, 10 * sizeof(int));
-	set[0] = min;
-	set[1] = max;
+	set[0] = 1;
+	set[1] = 2;
 
+	// Inizializzazione del dominio di caratteri
 	char cs[] = { 'a', 'b', 'c', 'd', 'e', 'f' };
 
-	n = 3;			// Numero di caratteri per la stringa
-	str[n] = '\0';	// Terminatore di stringa
-	linearComb(cs, 3, str, n);
+	n = 3;			// Numero di caratteri per la stringa finale
+	str[n] = '\0';	// Terminatore di stringa in posizione n-esima
 
-/*	int i;
-	for (i = 0; i < 3; i++) {
-		printf("swap!!");
-		comb(cs, 3, 0, str, 3, 0);
-		swap(cs, 0, i + 1);
-	}*/
+	comb(cs, 3, 0, str, 3, 2);
 
 	printf("Count = %d\n", count);
 	printf("Programma terminato\n");
