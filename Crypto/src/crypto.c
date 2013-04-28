@@ -7,6 +7,7 @@
  Description : Calculate Pi in MPI
  ============================================================================
  */
+
 #include <mpi.h>
 #include <stdio.h>
 #include <string.h>
@@ -49,16 +50,15 @@ void calc_pi(int rank, int num_procs) {
 }
 
 int startMPI(int argc, char *argv[]) {
-	int my_rank; /* rank of process */
-	int num_procs; /* number of processes */
-	int source; /* rank of sender */
-	int dest = 0; /* rank of receiver */
-	int tag = 0; /* tag for messages */
-	char message[100]; /* storage for message */
-	MPI_Status status; /* return status for receive */
+	int my_rank;		/* rank of process */
+	int num_procs;		/* number of processes */
+	int source; 		/* rank of sender */
+	int dest = 0; 		/* rank of receiver */
+	int tag = 0; 		/* tag for messages */
+	char message[100]; 	/* storage for message */
+	MPI_Status status; 	/* return status for receive */
 
 	/* start up MPI */
-
 	MPI_Init(&argc, &argv);
 
 	/* find out process rank */
@@ -74,7 +74,8 @@ int startMPI(int argc, char *argv[]) {
 		MPI_Send(message, strlen(message) + 1, MPI_CHAR, dest, tag,
 				MPI_COMM_WORLD );
 	} else {
-		printf("Num processes: %d\n", num_procs);
+		printf("*** Master process ***\n");
+		printf("Number of processes: %d\n", num_procs);
 		for (source = 1; source < num_procs; source++) {
 			MPI_Recv(message, 100, MPI_CHAR, source, tag, MPI_COMM_WORLD,
 					&status);
@@ -102,13 +103,13 @@ int startMPI(int argc, char *argv[]) {
 
 
 /*
- * Programma principale
+ * #### main ####
  *
  * Punto di ingresso del programma, da questo potranno essere
- * chiamati tutti i sotto moduli di
+ * chiamati tutti i sotto moduli di Crypto
  */
 int main(){
-	provaMain();
+	key_gen();				// Avvia il sottomodulo di partizione delle chiavi
 	//startMPI(0, NULL);
 	return 0;
 }
