@@ -74,7 +74,7 @@ int startMPI(int argc, char *argv[]) {
 	/* find out process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-	/* find out number of processes */
+	/* find aout number of processes */
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
 
