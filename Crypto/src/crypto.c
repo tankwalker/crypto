@@ -11,6 +11,8 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
 
 void calc_pi(int rank, int num_procs) {
 	int i;
@@ -58,42 +60,35 @@ int startMPI(int argc, char *argv[]) {
 	char message[100]; 	/* storage for message */
 	MPI_Status status; 	/* return status for receive */
 
+	char *cs;
+	//char *cs_fixed = "abcdefghijklmnopqrstuvwxyz";
+	char *cs_fixed = "abcd";
+	int passlen;
+
+	cs = malloc((strlen(cs_fixed)+1) * sizeof(char));
+	strcpy(cs, cs_fixed);
+
 	/* start up MPI */
 	MPI_Init(&argc, &argv);
 
 	/* find out process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-	/* find out number of processes */
+	/* find aout number of processes */
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
-	if (my_rank != 0) {
-		/* create message */
-		sprintf(message, "Greetings from process %d!", my_rank);
-		/* use strlen+1 so that '\0' get transmitted */
-		MPI_Send(message, strlen(message) + 1, MPI_CHAR, dest, tag,
-				MPI_COMM_WORLD );
-	} else {
-		printf("*** Master process ***\n");
-		printf("Number of processes: %d\n", num_procs);
-		for (source = 1; source < num_procs; source++) {
-			MPI_Recv(message, 100, MPI_CHAR, source, tag, MPI_COMM_WORLD,
-					&status);
-			printf("Process 0 received \"%s\"\n", message);
-		}
 
-		/* now return the compliment */
-		sprintf(message, "Hi, how are you?");
-	}
+	printf("Numero di processi attivi= %d\nmy rank=%d\n", num_procs, my_rank);
 
-	MPI_Bcast(message, strlen(message) + 1, MPI_CHAR, dest, MPI_COMM_WORLD );
+	if(my_rank)
+		sleep(4*my_rank);
 
-	if (my_rank != 0) {
-		printf("Process %d received \"%s\"\n", my_rank, message);
-	}
+	passlen = 4;
+	key_gen(my_rank, num_procs, cs, passlen);
 
-	/* calculate PI */
-	calc_pi(my_rank, num_procs);
+	/*if(rank==0){
+		MPI_Recv()
+	}*/
 
 	/* shut down MPI */
 	MPI_Finalize();
@@ -109,7 +104,6 @@ int startMPI(int argc, char *argv[]) {
  * chiamati tutti i sotto moduli di Crypto
  */
 int main(){
-	key_gen();				// Avvia il sottomodulo di partizione delle chiavi
-	//startMPI(0, NULL);
+	startMPI(0, NULL);
 	return 0;
 }
