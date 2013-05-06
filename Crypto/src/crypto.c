@@ -83,7 +83,7 @@ int startMPI(int argc, char *argv[]) {
 	if(my_rank)
 		sleep(2*my_rank);
 
-	passlen = 4;
+	passlen = 3;
 
 	key_gen(my_rank, num_procs, cs, passlen);
 
