@@ -81,7 +81,7 @@ int startMPI(int argc, char *argv[]) {
 	printf("Numero di processi attivi= %d\nmy rank=%d\n", num_procs, my_rank);
 
 	if(my_rank)
-		sleep(4*my_rank);
+		sleep(2*my_rank);
 
 	passlen = 4;
 
