@@ -12,7 +12,18 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <time.h>
+
+#include "part.h"
+
+struct user_input{
+
+	char cs[CHARSET_SIZE+1];
+	char hash[HASH_SIZE+1];
+	int passlen;
+
+};
 
 void calc_pi(int rank, int num_procs) {
 	int i;
@@ -51,21 +62,46 @@ void calc_pi(int rank, int num_procs) {
 	}
 }
 
+void get_user_input(user_input *ui){
+
+	printf("Inserire charset: ");
+	fflush(stdout);
+	scanf("%s", ui -> cs);
+	printf("\nInserire hash della  password: ");
+	fflush(stdout);
+	scanf("%s", ui -> hash);
+	printf("\nInserire lunghezza della  password: ");
+	fflush(stdout);
+	scanf("%d", &(ui -> passlen));
+
+	printf("\nDEBUG:cs - %s, hash - %s, passlen - %d\n", ui -> cs, ui -> hash, ui -> passlen);
+
+}
+
 int startMPI(int argc, char *argv[]) {
+	char message[100]; 	/* storage for message */
+	int cs_size;
 	int my_rank;		/* rank of process */
 	int num_procs;		/* number of processes */
 	int source; 		/* rank of sender */
 	int dest = 0; 		/* rank of receiver */
+	int passlen;
 	int tag = 0; 		/* tag for messages */
-	char message[100]; 	/* storage for message */
+	long chunk;
+	long disp;
+	long init;
 	MPI_Status status; 	/* return status for receive */
 
+	int blockslen[UI_FIELDS];
+	user_input ui;
+
+	int i;
 	char *cs;
 	//char *cs_fixed = "abcdefghijklmnopqrstuvwxyz";
 	char *cs_fixed = "abcd";
-	int passlen;
 
-	cs = malloc((strlen(cs_fixed)+1) * sizeof(char));
+	cs_size = strlen(cs_fixed);
+	cs = malloc(cs_size+1 * sizeof(char));
 	strcpy(cs, cs_fixed);
 
 	/* start up MPI */
@@ -77,20 +113,50 @@ int startMPI(int argc, char *argv[]) {
 	/* find aout number of processes */
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
-
 	printf("Numero di processi attivi= %d\nmy rank=%d\n", num_procs, my_rank);
 
 	if(my_rank)
-		sleep(2*my_rank);
+		sleep(my_rank);
 
 	passlen = 3;
 
-	key_gen(my_rank, num_procs, cs, passlen);
+	disp = DISPOSITIONS(cs_size, passlen); // Numero di disposizioni da calcolare
+	chunk = DISP_PER_PROC(disp, num_procs); // Numero di disposizioni che ogni processo deve calcolare
 
-	/*if(rank==0){
-		MPI_Recv()
-	}*/
+	printf("DEBUG:Rank %d - Numero di disposizioni da calcolare: %lu.\n", my_rank, chunk);
 
+	init = chunk * my_rank;
+
+	 blockslen[0] = CHARSET_SIZE+1;
+	 blockslen[1] = HASH_SIZE+1;
+	 blockslen[2] = 1;
+
+	 MPI_Datatype types[UI_FIELDS] = {MPI_CHAR, MPI_CHAR, MPI_INT};
+	 MPI_Datatype MPI_User_input;
+	 MPI_Aint offsets[UI_FIELDS];
+
+	 offsets[0] = 0;
+	 offsets[1] = offsets[0] + (CHARSET_SIZE+1) * sizeof(char);
+	 offsets[2] = offsets[1] + (HASH_SIZE + 1 + PADDING) * sizeof(char);
+
+	 MPI_Type_create_struct(UI_FIELDS, blockslen, offsets, types, &MPI_User_input);
+	 MPI_Type_commit(&MPI_User_input);
+
+	if(my_rank == 0) get_user_input(&ui);
+
+	if(init <= disp){
+
+		printf("DEBUG: Rank %d - I'm waiting\n", my_rank);
+		MPI_Bcast(&ui, 1, MPI_User_input, 0, MPI_COMM_WORLD);
+		printf("DEBUG: Rank %d - Received Bcast\n", my_rank);
+
+		printf("DEBUG: Rank %d,uip:%p\n", my_rank, &ui);
+		printf("DEBUG: Rank %d, cs %s, passwd %s, passlen %d\n", my_rank, ui.cs, ui.hash, ui.passlen);
+
+		key_gen(my_rank, num_procs, &ui);
+	}
+
+	MPI_Type_free(&MPI_User_input);
 	/* shut down MPI */
 	MPI_Finalize();
 

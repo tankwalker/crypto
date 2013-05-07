@@ -8,6 +8,25 @@
 #ifndef PART_H_
 #define PART_H_
 
+
+#include <math.h>
+
+#define BCAST_TAG 0
+#define CHARSET_SIZE 64
+#define DISPOSITIONS(cs_len, pass_len) (powl((cs_len),(pass_len)));
+#define DISP_PER_PROC(disp, num_procs) (((disp)/(num_procs))+1);
+#define HASH_SIZE 16
+#define PADDING 2
+#define STR_PASSLEN 3
+#define STARTING_CHAR(init, cs_size, pos) (((int)((init)/(powl(cs_size,pos))))%(cs_size))
+#define UI_FIELDS 3
+
+typedef struct string_t string_t;
+typedef struct comb_parms comb_parms;
+typedef struct comb_settings comb_settings;
+typedef struct user_input user_input;
+
+
 /**
  * Verifica che l'intero 'pos' sia presente all'interno dell'insisme
  * 'set' di dimensione 'k'.
@@ -39,7 +58,7 @@ int contains(int pos, int *set, int k);
  * @param set: Insieme contenente tutti gli indici 'riservati'
  * @param size: Dimensione del set degli indici riservati
  */
-int comb(char *cs, int k, int pos, char *current, int n, int size);
+int comb(comb_parms *combparms, int pos);
 
 
 /**
@@ -49,6 +68,6 @@ int comb(char *cs, int k, int pos, char *current, int n, int size);
  * @param reserved: Insieme degli indici riservati
  * @param k: Dimensione dell'insieme
  */
-int key_gen(int *reserved, int k);
+int key_gen(int rank, int num_procs, user_input *ui);
 
 #endif /* PART_H_ */

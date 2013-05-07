@@ -8,20 +8,45 @@
  */
 
 
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-//#define DISP_PER_PROC(cs_len, pass_len, num_procs) (((powl((cs_len),(pass_len)))/(num_procs))+1);
-#define DISPOSITIONS(cs_len, pass_len) (powl((cs_len),(pass_len)));
-#define DISP_PER_PROC(disp, num_procs) (((disp)/(num_procs))+1);
-#define STARTING_CHAR(init, cs_size, pos) (((int)((init)/(powl(cs_size,pos))))%(cs_size));
+#include "part.h"
 
 /*
  * Dichiarazione varibili globali
  */
 int count, min, max, *set, filter, my_rank;
+
+struct string_t{
+
+	char *str;
+	int size;
+
+};
+
+struct comb_settings{
+
+	int *starting_point;
+	long chunk;
+
+};
+
+struct comb_parms{
+
+	string_t *cs, *passwd;
+	comb_settings *init;
+
+};
+
+struct user_input{
+
+	char *cs;
+	char *hash;
+	int passlen;
+
+};
 
 /*
  * Funzioni principali
@@ -120,24 +145,30 @@ int disp4char(char *str, int m, char *cs, int n){
 	return 0;
 }
 
-int comb(char *pass, int passlen, char *cs,int cs_size, int *starting_point, long chunk, int pos){
+int comb(comb_parms *parms, int pos){
 
-	int i;
+
+	int i, cs_size = parms->cs->size;
+	long chunk = parms->init->chunk;
+	char *cs = parms->cs->str;
+	char *passwd = parms->passwd->str;
+
+	printf("Parms:cs_size %d - chunk %lu - cs %s - passwd %s\n", cs_size, chunk, cs, passwd);
 
 	if(count == chunk) return 0;
 
-	if(pos == passlen){
+	if(pos == parms->passwd->size){
 
-		test(pass);
+		test(passwd);
 		return 0;
 	}
 
 	if(!count){
 
-		for(i=starting_point[pos]; i < cs_size && count != chunk; i++){
+		for(i=(parms->init->starting_point)[pos]; i < cs_size && count != chunk; i++){
 
-			pass[pos] = cs[i];
-			comb(pass, passlen, cs, cs_size, starting_point, chunk, pos+1);
+			passwd[pos] = cs[i];
+			comb(parms, pos+1);
 
 		}
 
@@ -147,15 +178,13 @@ int comb(char *pass, int passlen, char *cs,int cs_size, int *starting_point, lon
 
 		for(i=0; i < cs_size && count != chunk; i++){
 
-					pass[pos] = cs[i];
-					comb(pass, passlen, cs, cs_size, starting_point, chunk, pos+1);
+			passwd[pos] = cs[i];
+			comb(parms, pos+1);
 
 		}
 
 	}
-
 	return 0;
-
 }
 
 /*int comb(char *cs, int k, int pos, char *current, int n, int *set, int size, int from, int to) {
@@ -221,8 +250,6 @@ int *compute_starting_point(long init, int cs_size, int passlen){
 	int i;
 	int *starting_point = malloc(passlen * sizeof(int));
 
-	printf("DEBUG:Rank %d - init %lu - cs_size %d - passlen %d\n",my_rank, init, cs_size, passlen);
-
 	for(i = 0; i < passlen; i++){
 
 		int p = STARTING_CHAR(init, cs_size, i);
@@ -233,66 +260,54 @@ int *compute_starting_point(long init, int cs_size, int passlen){
 	return starting_point;
 }
 
-int key_gen(int rank, int num_procs, char *cs, int passlen) {
+int key_gen(int rank, int num_procs, user_input *ui) {
 
-	char *pass;
-	int index, cs_size, from, to;
 	int *starting_point;
 	long chunk, disp, init;
 
+	comb_parms *parms;
+	string_t *cs, *passwd;
+	comb_settings *settings;
+
 	printf("Avvio programma di partizione...\n");
+	printf("DEBUG: Rank %d, cs %s, passwd %s, passlen %d\n", my_rank, ui->cs, ui->hash, ui->passlen);
 
 	count = 0;
-	cs_size = strlen(cs);
-	pass = malloc(16 * sizeof(char)); // alloca spazio di 16 caratteri per la stringa di output
-	memset(pass, '\0', 16 * sizeof(char)); // inizializza la stringa con il carattere 'a' (16x)
+
+	parms = malloc(sizeof(comb_parms));
+
+	cs = malloc(2*sizeof(string_t));
+	passwd = cs+1;
+	settings = malloc(sizeof(comb_settings));
+
+	cs->str = ui->cs;
+	cs->size = strlen(ui->cs);
+	passwd->str = malloc((ui->passlen + 1) * sizeof(char)); // alloca spazio di 16 caratteri per la stringa di output
+	passwd->size = ui->passlen;
+	memset(passwd->str, '\0', (ui->passlen + 1) * sizeof(char)); // inizializza la stringa di lavoro
 
 	my_rank = rank;
-	// Numero di disposizioni da calcolare
-	disp = DISPOSITIONS(cs_size, passlen);
-
-	// Numero di disposizioni che ogni processo deve calcolare
-	chunk = DISP_PER_PROC(disp, num_procs);
+	disp = DISPOSITIONS(cs->size, ui->passlen); // Numero di disposizioni da calcolare
+	chunk = DISP_PER_PROC(disp, num_procs); // Numero di disposizioni che ogni processo deve calcolare
 
 	printf("DEBUG:Rank %d - Numero di disposizioni da calcolare: %lu.\n", my_rank, chunk);
 
 	init = chunk * my_rank;
 
-	if(init <= disp) {
+	starting_point = compute_starting_point(init, cs->size, ui->passlen);
 
-		starting_point = compute_starting_point(init, cs_size, passlen);
-		comb(pass, passlen, cs, cs_size, starting_point, chunk, 0);
+	settings->chunk = chunk;
+	settings->starting_point=starting_point;
 
-	}
-	// inizializzazione della stringa di lavoro
+	parms->cs=cs;
+	parms->passwd=passwd;
+	parms->init=settings;
 
-	// Inizializzazione del set degli indici riservati
-	set = malloc(10 * sizeof(int));	// alloca spazio per l'insieme degli indici riservati
-	bzero(set, 10 * sizeof(int));// inizializza a zero l'intera area di memoria del set
+	comb(parms, 0);
 
-	pass[passlen] = '\0';		// Terminatore di stringa in posizione n-esima
-	//TODO OTTIMIZZARE K/NUM_PROCS;
-	/*chunk = (cs_size / num_procs);
-	if(chunk < 1){
-
-	}
-	from = chunk * my_rank;
-	to = chunk + from;
-	if (my_rank == (num_procs - 1) && my_rank != 0)
-		if ((cs_size % num_procs))
-			to++;
-
-	//for (index = 0; index < 1; index++) {
-	//	printf("=======================\n");
-	//	printf("index = %d\n", index);
-	count = 0;
-	comb(cs, cs_size, 0, str, passlen, set, 1, from, to);
-	//}*/
-
-	//disp4char(pass, passlen, cs, cs_size);
-
-	free(pass);			// dealloca lo spazio riservato per la stringa di output
-	free(set);
+	free(settings);
+	free(cs);
+	free(parms);
 
 	printf("Count = %d\n", count);
 	printf("Programma terminato\n");
