@@ -153,7 +153,7 @@ int comb(comb_parms *parms, int pos){
 	char *cs = parms->cs->str;
 	char *passwd = parms->passwd->str;
 
-	printf("Parms:cs_size %d - chunk %lu - cs %s - passwd %s\n", cs_size, chunk, cs, passwd);
+	//printf("Parms:cs_size %d - chunk %lu - cs %s - passwd %s\n", cs_size, chunk, cs, passwd);
 
 	if(count == chunk) return 0;
 
@@ -270,7 +270,7 @@ int key_gen(int rank, int num_procs, user_input *ui) {
 	comb_settings *settings;
 
 	printf("Avvio programma di partizione...\n");
-	printf("DEBUG: Rank %d, cs %s, passwd %s, passlen %d\n", my_rank, ui->cs, ui->hash, ui->passlen);
+	//printf("DEBUG: Rank %d, cs %s, passwd %s, passlen %d\n", my_rank, ui->cs, ui->hash, ui->passlen);
 
 	count = 0;
 
@@ -290,7 +290,7 @@ int key_gen(int rank, int num_procs, user_input *ui) {
 	disp = DISPOSITIONS(cs->size, ui->passlen); // Numero di disposizioni da calcolare
 	chunk = DISP_PER_PROC(disp, num_procs); // Numero di disposizioni che ogni processo deve calcolare
 
-	printf("DEBUG:Rank %d - Numero di disposizioni da calcolare: %lu.\n", my_rank, chunk);
+	//printf("DEBUG:Rank %d - Numero di disposizioni da calcolare: %lu.\n", my_rank, chunk);
 
 	init = chunk * my_rank;
 

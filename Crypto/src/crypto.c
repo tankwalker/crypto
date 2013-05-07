@@ -74,7 +74,7 @@ void get_user_input(user_input *ui){
 	fflush(stdout);
 	scanf("%d", &(ui -> passlen));
 
-	printf("\nDEBUG:cs - %s, hash - %s, passlen - %d\n", ui -> cs, ui -> hash, ui -> passlen);
+	//printf("\nDEBUG:cs - %s, hash - %s, passlen - %d\n", ui -> cs, ui -> hash, ui -> passlen);
 
 }
 
@@ -150,8 +150,8 @@ int startMPI(int argc, char *argv[]) {
 		MPI_Bcast(&ui, 1, MPI_User_input, 0, MPI_COMM_WORLD);
 		printf("DEBUG: Rank %d - Received Bcast\n", my_rank);
 
-		printf("DEBUG: Rank %d,uip:%p\n", my_rank, &ui);
-		printf("DEBUG: Rank %d, cs %s, passwd %s, passlen %d\n", my_rank, ui.cs, ui.hash, ui.passlen);
+		//printf("DEBUG: Rank %d,uip:%p\n", my_rank, &ui);
+		//printf("DEBUG: Rank %d, cs %s, passwd %s, passlen %d\n", my_rank, ui.cs, ui.hash, ui.passlen);
 
 		key_gen(my_rank, num_procs, &ui);
 	}
