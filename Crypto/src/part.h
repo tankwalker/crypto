@@ -8,7 +8,6 @@
 #ifndef PART_H_
 #define PART_H_
 
-
 #include <math.h>
 
 #define BCAST_TAG 0

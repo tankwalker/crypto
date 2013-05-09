@@ -42,8 +42,8 @@ struct comb_parms{
 
 struct user_input{
 
-	char *cs;
-	char *hash;
+	char cs[CHARSET_SIZE+1];
+	char hash[HASH_SIZE+1];
 	int passlen;
 
 };
@@ -63,85 +63,6 @@ struct user_input{
 int test(char *pass) {
 	printf("Processo %d => %s\n", my_rank, pass);
 	count++;
-	return 0;
-}
-
-int contains(int pos, int *set, int k) {
-	int i;
-	for (i = 0; i < k; i++) {
-		if (set[i] == pos)
-			return 1;
-	}
-	return 0;
-}
-
-int disp2char(char *str, int m, char *cs, int n){
-
-	int i,j,index=0;
-
-	for(i=0; i<n; i++){
-
-		str[index] = cs[i];
-
-		for(j=0; j<n; j++){
-
-			str[index+1] = cs[j];
-			test(str);
-
-		}
-	}
-	return 0;
-}
-
-int disp3char(char *str, int m, char *cs, int n){
-
-	int i,j,k,index = 0;
-
-	for(i=0; i<n; i++){
-
-		str[index] = cs[i];
-
-		for(j=0; j<n; j++){
-
-			str[index+1] = cs[j];
-
-			for(k=0; k<n; k++){
-
-				str[index+2] = cs[k];
-				test(str);
-
-			}
-		}
-	}
-	return 0;
-}
-
-int disp4char(char *str, int m, char *cs, int n){
-
-	int x,y,w,z, index = 0;
-
-	for(x=0; x<n; x++){
-
-		str[index] = cs[x];
-
-		for(y=0; y<n; y++){
-
-			str[index+1] = cs[y];
-
-			for(w=0; w<n; w++){
-
-				str[index+2] = cs[w];
-
-				for(z=0; z<n; z++){
-
-					str[index+3] = cs[z];
-					test(str);
-
-				}
-
-			}
-		}
-	}
 	return 0;
 }
 
@@ -186,64 +107,6 @@ int comb(comb_parms *parms, int pos){
 	}
 	return 0;
 }
-
-/*int comb(char *cs, int k, int pos, char *current, int n, int *set, int size, int from, int to) {
-	int i;
-
-	if (pos >= n) {
-		test(current);
-		return 0;
-	}
-
-	//printf("comb # from=%d, to=%d\n", from ,to);
-
-	/* Se il livello di chiamata ricorsiva, dunque la posizione
-	 * all'interno della password, è contenuta all'interno del
-	 * set, allora viene avviato il ciclo ridotto al sottoinsieme
-	 * di caratteri di competenza del processo MPI
-	 */
-	/*if (contains(pos, set, size))
-		for (i = from; i < to; i++) {
-			current[pos] = cs[i];
-			comb(cs, k, pos + 1, current, n, set, size, from, to);
-		}
-
-	else
-		for (i = 0; i < k; i++) {
-			/*if(contains(pos, set, size)){
-			 current[pos] = fixed;
-			 comb(cs, k, pos + 1, current, n, set, size, fixed, from, to);
-			 break;
-			 }*/
-		/*	current[pos] = cs[i];
-			comb(cs, k, pos + 1, current, n, set, size, from, to);
-		}
-
-	return 0;
-}*/
-
-/*
- * Versione iterativa della funzione di generazione delle disposizioni
- * sul charset cs nella stringa current
- */
-/*int linearComb(char *cs, int k, char *current, int n) {
- int i, j, q;
-
- for (i = n-2; i >= 0; i--) {
- for (j = 0; j < k; j++) {
-
- current[i] = cs[j];
-
- for (q = 0; q < k; q++) {
- current[n-1] = cs[q];
- test(current);
- }
- }
- current[i] = cs[0];
- }
-
- return 0;
- }*/
 
 int *compute_starting_point(long init, int cs_size, int passlen){
 
@@ -314,3 +177,37 @@ int key_gen(int rank, int num_procs, user_input *ui) {
 
 	return 0;
 }
+
+/*
+ * Funzioni GET dei membri della struttura user_input
+ */
+
+/**
+ * Ritorna il charset su cui effettuare l'attacco
+ *
+ * @param ui: Puntatore a una struct user_input
+ * @return: Puntatore al charset
+ */
+
+/*char *getCs(user_input *ui){
+
+	return ui->cs;
+
+}
+
+/*
+ * Funzioni SET dei membri della struttura user_input
+ */
+
+/**
+ * Fissa il charset su cui effettuare l'attacco
+ *
+ * @param ui: Puntatore a una struct user_input
+ * @return: Puntatore al charset
+ */
+
+/*char *setCs(user_input *ui, char *){
+
+	return ui->cs;
+
+}*/
