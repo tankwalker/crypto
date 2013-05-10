@@ -16,6 +16,7 @@
 #include <time.h>
 
 #include "part.h"
+#include "hash.h"
 
 struct user_input{
 
@@ -30,7 +31,7 @@ void get_user_input(user_input *ui){
 	printf("Inserire charset: ");
 	fflush(stdout);
 	scanf("%s", ui -> cs);
-	printf("\nInserire hash della  password: ");
+	printf("\nInserire la  password: ");
 	fflush(stdout);
 	scanf("%s", ui -> hash);
 	printf("\nInserire lunghezza della  password: ");
@@ -61,14 +62,23 @@ int startMPI(int argc, char *argv[]) {
 	int i;
 	char *cs;
 	//char *cs_fixed = "abcdefghijklmnopqrstuvwxyz";
-	char *cs_fixed = "abcd";
+	//char *cs_fixed = "abcd";
 
-	cs_size = strlen(cs_fixed);
-	cs = malloc(cs_size+1 * sizeof(char));
-	strcpy(cs, cs_fixed);
+	//cs_size = strlen(cs_fixed);
+	//cs = malloc(cs_size+1 * sizeof(char));
+	//strcpy(cs, cs_fixed);
 
+	printf("Avvio mainMPI\n");
+	printf("parametri di init:: argc=%d\n", argc);
+	for(i=0; i<argc; i++){
+		printf("argv[%d]= %s", i, argv[i]);
+	}
+	printf("\n");
+	
 	/* start up MPI */
 	MPI_Init(&argc, &argv);
+	
+	printf("Inizializzazione terminata");
 
 	/* find out process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
@@ -78,7 +88,8 @@ int startMPI(int argc, char *argv[]) {
 
 	printf("Numero di processi attivi= %d\nmy rank=%d\n", num_procs, my_rank);
 
-	if(my_rank)
+	if(my_rank)printf("\nInserire hash della  password: ");
+
 		sleep(my_rank);
 
 	passlen = 3;
@@ -133,7 +144,46 @@ int startMPI(int argc, char *argv[]) {
  * Punto di ingresso del programma, da questo potranno essere
  * chiamati tutti i sotto moduli di Crypto
  */
-int main(){
-	startMPI(0, NULL);
+int main(int argc, char *argv[]){
+	int ret, passlen;
+	unsigned char buffer[256];
+	unsigned char hash[HASH_SIZE];
+
+	printf("==============================\n");
+	printf("\t\tMAIN\n");
+	printf("==============================\n");
+
+
+	do{
+		puts(">>");
+		ret = scanf("%s", buffer);
+
+		if(!strcmp(buffer, "run")){
+			startMPI(0, NULL);
+		}
+
+		else if(!strcmp(buffer, "hash")){
+			scanf("%s", buffer);
+			hashMD5(buffer, hash);
+			printf("> MD5('%s') = ", buffer);
+			printHash(hash);
+			printf("Impostato il valore dello hash\n");
+		}
+
+		else if(!strcmp(buffer, "passlen")){
+			passlen = 0;
+			scanf("%d", buffer);
+			memcpy(&passlen, buffer, sizeof(int));
+			printf("Impostata una lunghezza di password di %d", passlen);
+		}
+
+		else if(!strcmp(buffer, "quit")){
+			break;
+		}
+
+		puts("");
+	} while(1);
+
+	puts("Esco");
 	return 0;
 }
