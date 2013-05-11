@@ -40,10 +40,11 @@ struct comb_parms{
 
 };
 
-struct user_input{
+//TODO: metodi set/get
+struct user_input {
 
 	char cs[CHARSET_SIZE+1];
-	char hash[HASH_SIZE+1];
+	char hash[HASH_SIZE];
 	int passlen;
 
 };
