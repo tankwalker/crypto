@@ -12,6 +12,8 @@
 #include "syms.h"
 #include "hash.h"
 
+const int binaries[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+
 /**
  * La funzione prende come parametro un puntatore a carattere già inizializzato!
  */
@@ -25,8 +27,8 @@ int hashMD5(char *plain, unsigned char *hash) {
 	}
 
 	size = strlen(plain);
-	for(i=0; i<size; i++){
-		mhash(td, plain+i, 1);
+	for (i = 0; i < size; i++) {
+		mhash(td, plain + i, 1);
 	}
 
 	mhash_deinit(td, hash);
@@ -35,8 +37,22 @@ int hashMD5(char *plain, unsigned char *hash) {
 
 }
 
+int hexToBin(unsigned char c) {
+
+	int low = tolower(c);
+
+	if (low >= '0' && low <= '9')
+		return binaries[c - '0'];
+	if (low >= 'a' && low <= 'f')
+		return binaries[A_HEX_VALUE + c - 'a'];
+
+	return -1;
+
+}
+
 void printHash(unsigned char *hash) {
 	int i;
+	unsigned char toCopy;
 
 	printf("0x");
 
@@ -45,4 +61,29 @@ void printHash(unsigned char *hash) {
 	}
 
 	printf("\n");
+}
+
+int strToBin(char *token, char *dest, int size) {
+	int i, j, lb, hb, len;
+	unsigned char toCopy;
+	char *buff;
+
+	buff = strtok(token, "xX");
+	if(strlen(buff) == 1)
+		token = strtok(NULL, "\n");
+
+	len = strlen(token);
+	if(len != size)
+		return -1; //TODO: Codice errore specifico
+
+	for (i = 0, j = 0; i < size; i += 2) {
+
+		hb = hexToBin(token[i]);
+		lb = hexToBin(token[i + 1]);
+		toCopy = (hb << HIGH_BYTE) + lb;
+
+		memcpy(dest + j++, &toCopy, sizeof(char));
+	}
+
+	return 0;
 }

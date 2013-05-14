@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "part.h"
+#include "hash.h"
 
 /*
  * Dichiarazione varibili globali
@@ -49,6 +50,8 @@ struct user_input {
 
 };
 
+extern user_input ui;
+
 /*
  * Funzioni principali
  */
@@ -64,7 +67,12 @@ struct user_input {
 int test(char *pass) {
 	printf("Processo %d => %s\n", my_rank, pass);
 	count++;
-	return 0;
+
+	char hash[HASH_SIZE];
+	hashMD5(pass, hash);
+
+	return memcmp(ui.hash, hash, HASH_SIZE);
+
 }
 
 int comb(comb_parms *parms, int pos){
@@ -81,7 +89,10 @@ int comb(comb_parms *parms, int pos){
 
 	if(pos == parms->passwd->size){
 
-		test(passwd);
+		if(test(passwd) == 0){
+			return 1;
+		}
+
 		return 0;
 	}
 
@@ -90,7 +101,8 @@ int comb(comb_parms *parms, int pos){
 		for(i=(parms->init->starting_point)[pos]; i < cs_size && count != chunk; i++){
 
 			passwd[pos] = cs[i];
-			comb(parms, pos+1);
+			if(comb(parms, pos+1))
+				return 1;
 
 		}
 
@@ -101,7 +113,8 @@ int comb(comb_parms *parms, int pos){
 		for(i=0; i < cs_size && count != chunk; i++){
 
 			passwd[pos] = cs[i];
-			comb(parms, pos+1);
+			if(comb(parms, pos+1))
+				return 1;
 
 		}
 
@@ -124,10 +137,11 @@ int *compute_starting_point(long init, int cs_size, int passlen){
 	return starting_point;
 }
 
-int key_gen(int rank, int num_procs, user_input *ui) {
+int key_gen(int rank, int num_procs) {
 
 	int *starting_point;
 	long chunk, disp, init;
+	char *match;
 
 	comb_parms *parms;
 	string_t *cs, *passwd;
@@ -139,26 +153,27 @@ int key_gen(int rank, int num_procs, user_input *ui) {
 	count = 0;
 
 	parms = malloc(sizeof(comb_parms));
+	//match = malloc(sizeof((ui.passlen + 1) * sizeof(char)));
 
 	cs = malloc(2*sizeof(string_t));
 	passwd = cs+1;
 	settings = malloc(sizeof(comb_settings));
 
-	cs->str = ui->cs;
-	cs->size = strlen(ui->cs);
-	passwd->str = malloc((ui->passlen + 1) * sizeof(char)); // alloca spazio di 16 caratteri per la stringa di output
-	passwd->size = ui->passlen;
-	memset(passwd->str, '\0', (ui->passlen + 1) * sizeof(char)); // inizializza la stringa di lavoro
+	cs->str = ui.cs;
+	cs->size = strlen(ui.cs);
+	passwd->str = malloc((ui.passlen + 1) * sizeof(char)); // alloca spazio di 16 caratteri per la stringa di output
+	passwd->size = ui.passlen;
+	memset(passwd->str, '\0', (ui.passlen + 1) * sizeof(char)); // inizializza la stringa di lavoro
 
 	my_rank = rank;
-	disp = DISPOSITIONS(cs->size, ui->passlen); // Numero di disposizioni da calcolare
+	disp = DISPOSITIONS(cs->size, ui.passlen); // Numero di disposizioni da calcolare
 	chunk = DISP_PER_PROC(disp, num_procs); // Numero di disposizioni che ogni processo deve calcolare
 
 	//printf("DEBUG:Rank %d - Numero di disposizioni da calcolare: %lu.\n", my_rank, chunk);
 
 	init = chunk * my_rank;
 
-	starting_point = compute_starting_point(init, cs->size, ui->passlen);
+	starting_point = compute_starting_point(init, cs->size, ui.passlen);
 
 	settings->chunk = chunk;
 	settings->starting_point=starting_point;
@@ -167,7 +182,10 @@ int key_gen(int rank, int num_procs, user_input *ui) {
 	parms->passwd=passwd;
 	parms->init=settings;
 
-	comb(parms, 0);
+	if(comb(parms, 0)){
+		printf("password trovata: '%s'\n", parms->passwd->str);
+		//MPI_Bcast();
+	}
 
 	free(settings);
 	free(cs);

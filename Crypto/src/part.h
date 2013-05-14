@@ -67,6 +67,6 @@ int comb(comb_parms *combparms, int pos);
  * @param reserved: Insieme degli indici riservati
  * @param k: Dimensione dell'insieme
  */
-int key_gen(int rank, int num_procs, user_input *ui);
+int key_gen(int rank, int num_procs);
 
 #endif /* PART_H_ */
