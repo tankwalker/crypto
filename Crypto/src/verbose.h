@@ -19,7 +19,7 @@ int verbose = 0,
 
 #define verbose(head, msg) do { \
 	if(verbose) \
-		printf("%s:: %s", (head), (msg)); \
+		printf("%s:: %s\n", (head), (msg)); \
 		} while(0)
 
 #endif /* VERBOSE_H_ */

@@ -56,7 +56,7 @@ struct user_input {
 
 };
 
-extern user_input ui;
+extern user_input *ui;
 
 /*
  * Funzioni principali
@@ -71,13 +71,14 @@ extern user_input ui;
  * @return: 0 in caso di fallimento, >0 altrimenti
  */
 int test(char *pass) {
-	printf("Processo %d => %s\n", my_rank, pass);
+	if(!(count % 10000))
+		printf("Processo %d => %s\n", my_rank, pass);
 	count++;
 
 	char hash[HASH_SIZE];
 	hashMD5(pass, hash);
 
-	return memcmp(ui.hash, hash, HASH_SIZE);
+	return memcmp(ui->hash, hash, HASH_SIZE);
 
 }
 
@@ -148,7 +149,6 @@ int key_gen(int rank, int num_procs, char **plain) {
 
 	int *starting_point;
 	long chunk, disp, init;
-	char *match;
 	int num_structs;
 	allocation allocs;
 
@@ -159,7 +159,7 @@ int key_gen(int rank, int num_procs, char **plain) {
 	printf("Avvio programma di partizione...\n");
 	//printf("DEBUG: Rank %d, cs %s, passwd %s, passlen %d\n", my_rank, ui->cs, ui->hash, ui->passlen);
 
-	pthread_cleanup_push(work_cleanup(), &allocs)
+	pthread_cleanup_push(work_cleanup, &allocs)
 		;
 
 		count = 0;
@@ -174,14 +174,14 @@ int key_gen(int rank, int num_procs, char **plain) {
 		allocs.structs[2] = settings;
 		allocs.num = 3;
 
-		cs->str = ui.cs;
-		cs->size = strlen(ui.cs);
-		passwd->str = malloc((ui.passlen + 1) * sizeof(char)); // alloca spazio di 16 caratteri per la stringa di output
-		passwd->size = ui.passlen;
-		memset(passwd->str, '\0', (ui.passlen + 1) * sizeof(char)); // inizializza la stringa di lavoro
+		cs->str = ui->cs;
+		cs->size = strlen(ui->cs);
+		passwd->str = malloc((ui->passlen + 1) * sizeof(char)); // alloca spazio di 16 caratteri per la stringa di output
+		passwd->size = ui->passlen;
+		memset(passwd->str, '\0', (ui->passlen + 1) * sizeof(char)); // inizializza la stringa di lavoro
 
 		my_rank = rank;
-		disp = DISPOSITIONS(cs->size, ui.passlen)
+		disp = DISPOSITIONS(cs->size, ui->passlen)
 		; // Numero di disposizioni da calcolare
 		chunk = DISP_PER_PROC(disp, num_procs)
 		; // Numero di disposizioni che ogni processo deve calcolare
@@ -190,7 +190,7 @@ int key_gen(int rank, int num_procs, char **plain) {
 
 		init = chunk * my_rank;
 
-		starting_point = compute_starting_point(init, cs->size, ui.passlen);
+		starting_point = compute_starting_point(init, cs->size, ui->passlen);
 
 		settings->chunk = chunk;
 		settings->starting_point = starting_point;
@@ -208,14 +208,12 @@ int key_gen(int rank, int num_procs, char **plain) {
 
 		pthread_cleanup_pop(work_cleanup);
 
-	printf("Count = %d\n", count);
-	printf("Programma terminato\n");
-
 	return 0;
 }
 
 void work_cleanup(allocation *allocs) {
 	int i;
+	printf("Processo %d -> Count = %d\n", my_rank, count);
 
 	for (i = 0; i < allocs->num; i++) {
 		free(allocs->structs[i]);

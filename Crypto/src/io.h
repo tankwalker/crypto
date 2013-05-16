@@ -14,6 +14,6 @@
  * Reppresenta il main loop di I/O per l'impostazione delle variabili di lavoro
  * e l'esecuzione dei comandi di ricerca delle chiavi
  */
-user_input *shell();
+void shell(user_input *ui);
 
 #endif /* IO_H_ */

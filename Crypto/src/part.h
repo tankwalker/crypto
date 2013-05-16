@@ -12,11 +12,11 @@
 
 #define BCAST_TAG 0
 #define CHARSET_SIZE 64
-#define DISPOSITIONS(cs_len, pass_len) (pow((cs_len),(pass_len)));
+#define DISPOSITIONS(cs_len, pass_len) (powl((cs_len),(pass_len)));
 #define DISP_PER_PROC(disp, num_procs) (((disp)/(num_procs))+1);
 #define PADDING 2
 #define STR_PASSLEN 3
-#define STARTING_CHAR(init, cs_size, pos) (((int)((init)/(pow(cs_size,pos))))%(cs_size))
+#define STARTING_CHAR(init, cs_size, pos) (((int)((init)/(powl(cs_size,pos))))%(cs_size))
 #define UI_FIELDS 3
 #define MAX_ALLOC 32
 
@@ -69,5 +69,7 @@ int comb(comb_parms *combparms, int pos);
  * @param k: Dimensione dell'insieme
  */
 int key_gen(int rank, int num_procs, char **plain);
+
+void work_cleanup(allocation *alloc);
 
 #endif /* PART_H_ */

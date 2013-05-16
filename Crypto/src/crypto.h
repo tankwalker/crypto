@@ -14,7 +14,7 @@
 #define TAG_COMPLETION 1		// Messaggio di verifica di completamento del lavoro
 #define TAG_PLAIN 2				// Messaggio di comunicazione della password in chiaro
 
-#define LOOP_TIMEOUT 1			// Tempo (s) di attesa nel cilco di controllo sulla condizione di terminazione
+#define LOOP_TIMEOUT 1		// Tempo (s) di attesa nel cilco di controllo sulla condizione di terminazione
 
 void supervisor();
 

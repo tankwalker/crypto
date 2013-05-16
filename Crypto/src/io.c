@@ -25,9 +25,9 @@ struct user_input {
 
 };
 
-user_input ui;
+extern int verbose;
 
-user_input *shell() {
+void shell(user_input *ui) {
 
 	int ret, passlen, num;
 	long phash;
@@ -39,7 +39,7 @@ user_input *shell() {
 	printf("==============================\n");
 
 	/* Avvia il main loop di shell per la configurazione */
-	bzero(&ui, sizeof(ui));
+	bzero(ui, sizeof(ui));
 
 	while (1) {
 		printf(">> ");
@@ -101,22 +101,22 @@ user_input *shell() {
 					continue;
 				}
 
-				ui.passlen = ret;
+				ui->passlen = ret;
 				printf("Impostata una lunghezza di password di %d\n",
-						ui.passlen);
+						ui->passlen);
 			}
 
 			if (!strcmp(token, "passwd")) {
 				token = strtok(NULL, " \n");
 
-				ret = strToBin(token, ui.hash, 2 * HASH_SIZE);
+				ret = strToBin(token, ui->hash, 2 * HASH_SIZE);
 				if(ret < 0){
 					printf("Stringa non valida\n");
 					continue;
 				}
 
 				printf("Impostata la password target = ");
-				printHash(ui.hash);
+				printHash(ui->hash);
 				fflush(stdout);
 
 			}
@@ -130,17 +130,17 @@ user_input *shell() {
 					continue;
 				}
 
-				memcpy(ui.cs, charsets[num], strlen(charsets[num]) + 1);
-				printf("Impostato il charset = '%s'\n", ui.cs);
+				memcpy(ui->cs, charsets[num], strlen(charsets[num]) + 1);
+				printf("Impostato il charset = '%s'\n", ui->cs);
 			}
 		}
 
 		if (!strcmp(buffer, "run")) {
 			printf("Avvio procedura decrittazione con parametri:\n");
-			printf("charset = '%s'\n", ui.cs);
+			printf("charset = '%s'\n", ui->cs);
 			printf("passwd: ");
-			printHash(ui.hash);
-			printf("passlen = %d\n", ui.passlen);
+			printHash(ui->hash);
+			printf("passlen = %d\n", ui->passlen);
 			printf("Conferma (y, n): ");
 			fflush(stdin);
 
@@ -165,8 +165,9 @@ user_input *shell() {
 			printHash(hash);
 		}
 
-		puts("");
+		if(!strcmp(buffer, "verbose")){
+			token = strtok(NULL, " \n");
+			verbose = atoi(token);
+		}
 	}
-
-	return &ui;
 }

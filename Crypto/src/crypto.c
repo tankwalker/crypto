@@ -60,6 +60,8 @@ int main(int argc, char *args[]) {
 
 	printf("Avvio mainMPI...\n");
 
+	ui = malloc(sizeof(user_input));
+
 	/* start up MPI */
 	verbose("MPI", "Inizializzazione MPI_Lib");
 	MPI_Init(NULL, NULL );
@@ -79,7 +81,7 @@ int main(int argc, char *args[]) {
 
 	/* Avvia la shell per il processo master */
 	if (!my_rank) {
-		ui = shell();
+		shell(ui);
 	}
 
 	blockslen[0] = CHARSET_SIZE + 1;
@@ -101,6 +103,8 @@ int main(int argc, char *args[]) {
 	printf("DEBUG: Rank %d - I'm waiting\n", my_rank);
 	MPI_Bcast(ui, 1, MPI_User_input, 0, MPI_COMM_WORLD );
 	printf("DEBUG: Rank %d - Received Bcast\n", my_rank);
+	printf("DEBUG: cs %s - Received cs\n", ui->cs);
+
 
 	cs_size = strlen(ui->cs);
 	disp = DISPOSITIONS(cs_size, ui->passlen)
@@ -123,6 +127,8 @@ int main(int argc, char *args[]) {
 	/* shut down MPI */
 	MPI_Finalize();
 
+	free(ui);
+
 	return 0;
 }
 
@@ -130,10 +136,11 @@ int main(int argc, char *args[]) {
  * Main loop per il supervisore (processo master)
  */
 void supervisor() {
-	int buffer, flag, i;
+	int flag, i;
 	MPI_Status status;
 	pthread_t worker_id;
 	char *plain;
+	char buffer[256];
 
 	plain = NULL;
 	pthread_create(&worker_id, NULL, worker, &plain);
@@ -145,35 +152,48 @@ void supervisor() {
 			flag = 1;
 
 			/* Invia a tutti i processi la comunicazione di interrompere la computazione */
+		//	printf("Processo %d - Avvio broadcast terminazione...\n", my_rank);
 			for (i = 0; i < num_procs; i++) {
 				if(i == my_rank)
-					i++;
+					continue;
+		//		printf("Processo %d - Invio messaggio di terminazione\n", my_rank);
 				MPI_Send(&flag, 1, MPI_INT, i, TAG_COMPLETION, MPI_COMM_WORLD );
+		//		printf("Processo %d - Messaggio di terminazione inviato\n", my_rank);
 			}
 
-			MPI_Send(*plain, ui->passlen, MPI_CHAR, 0, TAG_PLAIN,
+			MPI_Send(plain, ui->passlen, MPI_CHAR, 0, TAG_PLAIN,
 					MPI_COMM_WORLD );
 			break;
 		}
 
 		/* Controllo messaggi remoti */
+		//verbose("Crypto", "Verifico comunicazione remota");
+	//	printf("Processo %d: Verifico comunicazione remota\n", my_rank);
+
 		MPI_Iprobe(MPI_ANY_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &flag,
 				&status);
 
 		if (flag) {
 			/* Un worker remoto ha trovato la password */
-			MPI_Recv(&buffer, 1, MPI_INT, MPI_ANY_SOURCE, TAG_COMPLETION,
+			verbose("Crypto", "Messaggio remoto ricevuto");
+			//printf("Processo %d: Messaggio remoto ricevuto\n", my_rank);
+
+			MPI_Recv(buffer, 1, MPI_INT, MPI_ANY_SOURCE, TAG_COMPLETION,
 					MPI_COMM_WORLD, &status);
 
 			/* Il supervisor chiede la terminazione del worker locale */
+			verbose("Crypto", "Arresto worker thread");
 			pthread_cancel(worker_id);
 
 			break;
 		}
 
-		sleep(LOOP_TIMEOUT);
+		sleep(1);
 	}
-	verbose("Crypto", "Password trovata!");
+
+	sprintf(buffer, "Password trovata dal processo %d", status.MPI_SOURCE);
+	//verbose("Crypto", buffer);
+	printf("%s\n", buffer);
 }
 
 /**
