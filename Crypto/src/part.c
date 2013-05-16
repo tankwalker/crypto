@@ -7,44 +7,50 @@
  * ====================================================================
  */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "part.h"
 #include "hash.h"
+//#include "sym.h"
 
 /*
  * Dichiarazione varibili globali
  */
 int count, min, max, *set, filter, my_rank;
 
-struct string_t{
+struct string_t {
 
 	char *str;
 	int size;
 
 };
 
-struct comb_settings{
+struct comb_settings {
 
 	int *starting_point;
 	long chunk;
 
 };
 
-struct comb_parms{
+struct comb_parms {
 
 	string_t *cs, *passwd;
 	comb_settings *init;
 
 };
 
+struct allocation {
+	void *structs[MAX_ALLOC];
+	int num;
+};
+
 //TODO: metodi set/get
 struct user_input {
 
-	char cs[CHARSET_SIZE+1];
+	char cs[CHARSET_SIZE + 1];
 	char hash[HASH_SIZE];
 	int passlen;
 
@@ -75,8 +81,7 @@ int test(char *pass) {
 
 }
 
-int comb(comb_parms *parms, int pos){
-
+int comb(comb_parms *parms, int pos) {
 
 	int i, cs_size = parms->cs->size;
 	long chunk = parms->init->chunk;
@@ -85,35 +90,37 @@ int comb(comb_parms *parms, int pos){
 
 	//printf("Parms:cs_size %d - chunk %lu - cs %s - passwd %s\n", cs_size, chunk, cs, passwd);
 
-	if(count == chunk) return 0;
+	if (count == chunk)
+		return 0;
 
-	if(pos == parms->passwd->size){
+	if (pos == parms->passwd->size) {
 
-		if(test(passwd) == 0){
+		if (test(passwd) == 0) {
 			return 1;
 		}
 
 		return 0;
 	}
 
-	if(!count){
+	if (!count) {
 
-		for(i=(parms->init->starting_point)[pos]; i < cs_size && count != chunk; i++){
+		for (i = (parms->init->starting_point)[pos];
+				i < cs_size && count != chunk; i++) {
 
 			passwd[pos] = cs[i];
-			if(comb(parms, pos+1))
+			if (comb(parms, pos + 1))
 				return 1;
 
 		}
 
 	}
 
-	else{
+	else {
 
-		for(i=0; i < cs_size && count != chunk; i++){
+		for (i = 0; i < cs_size && count != chunk; i++) {
 
 			passwd[pos] = cs[i];
-			if(comb(parms, pos+1))
+			if (comb(parms, pos + 1))
 				return 1;
 
 		}
@@ -122,26 +129,28 @@ int comb(comb_parms *parms, int pos){
 	return 0;
 }
 
-int *compute_starting_point(long init, int cs_size, int passlen){
+int *compute_starting_point(long init, int cs_size, int passlen) {
 
 	int i;
 	int *starting_point = malloc(passlen * sizeof(int));
 
-	for(i = 0; i < passlen; i++){
+	for (i = 0; i < passlen; i++) {
 
 		int p = STARTING_CHAR(init, cs_size, i);
-		starting_point[passlen-i-1] = p;
-		printf("DEBUG:Rank %d - char in pos %d:%d\n",my_rank,i,p);
+		starting_point[passlen - i - 1] = p;
+		printf("DEBUG:Rank %d - char in pos %d:%d\n", my_rank, i, p);
 
 	}
 	return starting_point;
 }
 
-int key_gen(int rank, int num_procs) {
+int key_gen(int rank, int num_procs, char **plain) {
 
 	int *starting_point;
 	long chunk, disp, init;
 	char *match;
+	int num_structs;
+	allocation allocs;
 
 	comb_parms *parms;
 	string_t *cs, *passwd;
@@ -150,51 +159,67 @@ int key_gen(int rank, int num_procs) {
 	printf("Avvio programma di partizione...\n");
 	//printf("DEBUG: Rank %d, cs %s, passwd %s, passlen %d\n", my_rank, ui->cs, ui->hash, ui->passlen);
 
-	count = 0;
+	pthread_cleanup_push(work_cleanup(), &allocs)
+		;
 
-	parms = malloc(sizeof(comb_parms));
-	//match = malloc(sizeof((ui.passlen + 1) * sizeof(char)));
+		count = 0;
 
-	cs = malloc(2*sizeof(string_t));
-	passwd = cs+1;
-	settings = malloc(sizeof(comb_settings));
+		parms = malloc(sizeof(comb_parms));
+		cs = malloc(2 * sizeof(string_t));
+		passwd = cs + 1;
+		settings = malloc(sizeof(comb_settings));
 
-	cs->str = ui.cs;
-	cs->size = strlen(ui.cs);
-	passwd->str = malloc((ui.passlen + 1) * sizeof(char)); // alloca spazio di 16 caratteri per la stringa di output
-	passwd->size = ui.passlen;
-	memset(passwd->str, '\0', (ui.passlen + 1) * sizeof(char)); // inizializza la stringa di lavoro
+		allocs.structs[0] = parms;
+		allocs.structs[1] = cs;
+		allocs.structs[2] = settings;
+		allocs.num = 3;
 
-	my_rank = rank;
-	disp = DISPOSITIONS(cs->size, ui.passlen); // Numero di disposizioni da calcolare
-	chunk = DISP_PER_PROC(disp, num_procs); // Numero di disposizioni che ogni processo deve calcolare
+		cs->str = ui.cs;
+		cs->size = strlen(ui.cs);
+		passwd->str = malloc((ui.passlen + 1) * sizeof(char)); // alloca spazio di 16 caratteri per la stringa di output
+		passwd->size = ui.passlen;
+		memset(passwd->str, '\0', (ui.passlen + 1) * sizeof(char)); // inizializza la stringa di lavoro
 
-	//printf("DEBUG:Rank %d - Numero di disposizioni da calcolare: %lu.\n", my_rank, chunk);
+		my_rank = rank;
+		disp = DISPOSITIONS(cs->size, ui.passlen)
+		; // Numero di disposizioni da calcolare
+		chunk = DISP_PER_PROC(disp, num_procs)
+		; // Numero di disposizioni che ogni processo deve calcolare
 
-	init = chunk * my_rank;
+		//printf("DEBUG:Rank %d - Numero di disposizioni da calcolare: %lu.\n", my_rank, chunk);
 
-	starting_point = compute_starting_point(init, cs->size, ui.passlen);
+		init = chunk * my_rank;
 
-	settings->chunk = chunk;
-	settings->starting_point=starting_point;
+		starting_point = compute_starting_point(init, cs->size, ui.passlen);
 
-	parms->cs=cs;
-	parms->passwd=passwd;
-	parms->init=settings;
+		settings->chunk = chunk;
+		settings->starting_point = starting_point;
 
-	if(comb(parms, 0)){
-		printf("password trovata: '%s'\n", parms->passwd->str);
-		//MPI_Bcast();
-	}
+		parms->cs = cs;
+		parms->passwd = passwd;
+		parms->init = settings;
 
-	free(settings);
-	free(cs);
-	free(parms);
+		if (comb(parms, 0)) {
+			printf("password trovata: '%s'\n", parms->passwd->str);
+
+			/* Combinazione trovata */
+			*plain = parms->passwd->str;
+		}
+
+		pthread_cleanup_pop(work_cleanup);
 
 	printf("Count = %d\n", count);
 	printf("Programma terminato\n");
 
 	return 0;
+}
+
+void work_cleanup(allocation *allocs) {
+	int i;
+
+	for (i = 0; i < allocs->num; i++) {
+		free(allocs->structs[i]);
+	}
 }
 
 /*
@@ -210,11 +235,11 @@ int key_gen(int rank, int num_procs) {
 
 /*char *getCs(user_input *ui){
 
-	return ui->cs;
+ return ui->cs;
 
-}
+ }
 
-/*
+ /*
  * Funzioni SET dei membri della struttura user_input
  */
 
@@ -227,6 +252,6 @@ int key_gen(int rank, int num_procs) {
 
 /*char *setCs(user_input *ui, char *){
 
-	return ui->cs;
+ return ui->cs;
 
-}*/
+ }*/

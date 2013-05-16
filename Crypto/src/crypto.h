@@ -10,15 +10,14 @@
 
 #include <mpi.h>
 
-#define BASE 10		// Definisce la base di lavoro per la conversione di una stringa in long tramite 'strtol'
-#define BASE_HASH 16	// Definisce la base di lavoro per la conversione della sequesnza di byte che rappresenta lo hash target della password
-#define CS_SIZE 6
-char *charsets[] = {"abcdefghijklmnopqrstuvwxyz",
-					"ABCDEFEGHIJKLMNOPQRSTUVWXYZ",
-					"1234567890",
-					"abcdefghijklmnopqrstuvwxyzABCDEFEGHIJKLMNOPQRSTUVWXYZ",
-					"1234567890abcdefghijklmnopqrstuvwxyz",
-					"1234567890ABCDEFEGHIJKLMNOPQRSTUVWXYZ",
-					"1234567890abcdefghijklmnopqrstuvwxyzABCDEFEGHIJKLMNOPQRSTUVWXYZ"};
+/* Definizione dei tag per i messaggi di lavoro */
+#define TAG_COMPLETION 1		// Messaggio di verifica di completamento del lavoro
+#define TAG_PLAIN 2				// Messaggio di comunicazione della password in chiaro
+
+#define LOOP_TIMEOUT 1			// Tempo (s) di attesa nel cilco di controllo sulla condizione di terminazione
+
+void supervisor();
+
+void worker();
 
 #endif /* CRYPTO_H_ */

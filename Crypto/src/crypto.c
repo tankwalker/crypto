@@ -13,10 +13,15 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <time.h>
+#include <pthread.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
 
 #include "part.h"
 #include "hash.h"
 #include "crypto.h"
+#include "verbose.h"
+#include "io.h"
 
 struct user_input {
 
@@ -26,155 +31,14 @@ struct user_input {
 
 };
 
-user_input ui;
+user_input *ui;
 
-void shell() {
-
-	int ret, passlen, num;
-	long phash;
-	unsigned char buffer[256], *token;
-	unsigned char hash[HASH_SIZE];
-
-	printf("==============================\n");
-	printf("\tMAIN\n");
-	printf("==============================\n");
-
-	/* Avvia il main loop di shell per la configurazione */
-	bzero(&ui, sizeof(ui));
-
-	while (1) {
-		printf(">> ");
-
-		bzero(buffer, sizeof(buffer));
-		if (!fgets(buffer, sizeof(buffer), stdin)) {
-			printf("Errore sullo stdin! Esco\n");
-			exit(-1);
-		}
-
-		token = strtok(buffer, " \n");
-		if (token == NULL ) {
-			continue;
-		}
-
-		/* Chiude il programma */
-		if (!strcmp(token, "quit")) {
-
-
-			printf("Esco...\n");
-			break;
-		}
-
-		if (!strcmp(token, "help")) {
-			printf("===== Help =====\n");
-			printf("quit - per uscire\n");
-			printf(
-					"hash 'string' - restituisce lo hash della stringa in input\n");
-			printf(
-					"set | passlen, passwd, cs, hfunc - Imposta il valore di lavoro per la variabile indicata:\n");
-			printf(
-					"cs 'num' - imposta il charset di lavoro per la generazione delle password.\n");
-			printf("\tnum=0 -> sole minuscole\n");
-			printf("\tnum=1 -> sole maiuscole\n");
-			printf("\tnum=2 -> soli numeri\n");
-			printf("\tnum=3 -> maiuscole e minuscole\n");
-			printf("\tnum=4 -> numeri e minuscole\n");
-			printf("\tnum=5 -> numeri e maiuscole\n");
-			printf("\tnum=6 -> completo\n");
-			printf(
-					"passswd 'string' - Rappresenta la password codificata (md5) da decrittare\n");
-			printf(
-					"passlen 'num' - Numero di caratteri della password da trovare\n");
-			printf(
-					"hfunc 'type' - Imposta la funzione di hash da utilizzare nella ricerca della passwd [funzione non ancora abilitata]\n");
-			printf("run - per avviare la generazione delle password\n");
-			printf("===============\n");
-		}
-
-		if (!strcmp(token, "set")) {
-			token = strtok(NULL, " \n");
-
-			if (!strcmp(token, "passlen")) {
-				token = strtok(NULL, "");
-
-				ret = (int) strtol(token, NULL, BASE);
-				if(ret < 1){
-					printf("La lunghezza della password deve essere maggiore di zero!\n");
-					continue;
-				}
-
-				ui.passlen = ret;
-				printf("Impostata una lunghezza di password di %d\n",
-						ui.passlen);
-			}
-
-			if (!strcmp(token, "passwd")) {
-				token = strtok(NULL, " \n");
-
-				ret = strToBin(token, ui.hash, 2 * HASH_SIZE);
-				if(ret < 0){
-					printf("Stringa non valida\n");
-					continue;
-				}
-
-				printf("Impostata la password target = ");
-				printHash(ui.hash);
-				fflush(stdout);
-
-			}
-
-			if (!strcmp(token, "cs")) {
-				token = strtok(NULL, " \n");
-
-				num = (int) strtol(token, NULL, BASE);
-				if(num < 0 || num > CS_SIZE){
-					printf("Range non valido [0, 6]\n");
-					continue;
-				}
-
-				memcpy(ui.cs, charsets[num], strlen(charsets[num]) + 1);
-				printf("Impostato il charset = '%s'\n", ui.cs);
-			}
-		}
-
-		if (!strcmp(buffer, "run")) {
-			printf("Avvio procedura decrittazione con parametri:\n");
-			printf("charset = '%s'\n", ui.cs);
-			printf("passwd: ");
-			printHash(ui.hash);
-			printf("passlen = %d\n", ui.passlen);
-			printf("Conferma (y, n): ");
-			fflush(stdin);
-
-			while(!fgets(buffer, sizeof(buffer), stdin)){
-				continue;
-			}
-
-			if (buffer[0] == 'y') {
-				break;
-			}
-
-			else {
-				printf("annullato\n");
-				continue;
-			}
-		}
-
-		else if (!strcmp(buffer, "hash")) {
-			scanf("%s", buffer);
-			hashMD5(buffer, hash);
-			printf("> MD5('%s') = ", buffer);
-			printHash(hash);
-		}
-
-		puts("");
-	}
-
-}
+extern int verbose, slow;
+int my_rank; /* rank of process */
+int num_procs; /* number of processes */
 
 int main(int argc, char *args[]) {
 	char message[100]; /* storage for message */
-	int my_rank; /* rank of process */
-	int num_procs; /* number of processes */
 	int source; /* rank of sender */
 	int dest = 0; /* rank of receiver */
 	int passlen;
@@ -189,12 +53,17 @@ int main(int argc, char *args[]) {
 	int i, cs_size;
 	char *cs;
 
-	printf("Avvio mainMPI\n");
+	if (argc > 1) {
+		verbose = atoi(args[1]);
+		slow = atoi(args[2]);
+	}
+
+	printf("Avvio mainMPI...\n");
 
 	/* start up MPI */
-	MPI_Init(NULL, NULL);
-
-	printf("MPI:: Inizializzazione terminata");
+	verbose("MPI", "Inizializzazione MPI_Lib");
+	MPI_Init(NULL, NULL );
+	verbose("MPI", "Inizializzazione terminata");
 
 	/* find out process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
@@ -202,11 +71,16 @@ int main(int argc, char *args[]) {
 	/* find aout number of processes */
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
-	printf("MPI:: Numero di processi attivi= %d\nMPI:: My rank=%d\n", num_procs, my_rank);
+	printf("MPI:: Numero di processi attivi= %d\nMPI:: My rank=%d\n", num_procs,
+			my_rank);
 
-	sleep(my_rank);
-	if(!my_rank) shell(&ui);
+	if (slow)
+		sleep(my_rank);
 
+	/* Avvia la shell per il processo master */
+	if (!my_rank) {
+		ui = shell();
+	}
 
 	blockslen[0] = CHARSET_SIZE + 1;
 	blockslen[1] = HASH_SIZE + 1;
@@ -224,14 +98,15 @@ int main(int argc, char *args[]) {
 			&MPI_User_input);
 	MPI_Type_commit(&MPI_User_input);
 
-
 	printf("DEBUG: Rank %d - I'm waiting\n", my_rank);
-	MPI_Bcast(&ui, 1, MPI_User_input, 0, MPI_COMM_WORLD );
+	MPI_Bcast(ui, 1, MPI_User_input, 0, MPI_COMM_WORLD );
 	printf("DEBUG: Rank %d - Received Bcast\n", my_rank);
 
-	cs_size = strlen(ui.cs);
-	disp = DISPOSITIONS(cs_size, ui.passlen); // Numero di disposizioni da calcolare
-	chunk = DISP_PER_PROC(disp, num_procs); // Numero di disposizioni che ogni processo deve calcolare
+	cs_size = strlen(ui->cs);
+	disp = DISPOSITIONS(cs_size, ui->passlen)
+	; // Numero di disposizioni da calcolare
+	chunk = DISP_PER_PROC(disp, num_procs)
+	; // Numero di disposizioni che ogni processo deve calcolare
 
 	printf("DEBUG:Rank %d - Numero di disposizioni da calcolare: %lu.\n",
 			my_rank, chunk);
@@ -239,7 +114,7 @@ int main(int argc, char *args[]) {
 	init = chunk * my_rank;
 
 	if (init <= disp)
-		key_gen(my_rank, num_procs);
+		supervisor();
 	else
 		printf("Nessuna computazione da eseguire.\n");
 
@@ -249,6 +124,64 @@ int main(int argc, char *args[]) {
 	MPI_Finalize();
 
 	return 0;
+}
+
+/**
+ * Main loop per il supervisore (processo master)
+ */
+void supervisor() {
+	int buffer, flag, i;
+	MPI_Status status;
+	pthread_t worker_id;
+	char *plain;
+
+	plain = NULL;
+	pthread_create(&worker_id, NULL, worker, &plain);
+
+	while (1) {
+		/* Controllo messaggi in locale */
+		if (plain != NULL ) {
+			/* Il worker locale ha trovato la password */
+			flag = 1;
+
+			/* Invia a tutti i processi la comunicazione di interrompere la computazione */
+			for (i = 0; i < num_procs; i++) {
+				if(i == my_rank)
+					i++;
+				MPI_Send(&flag, 1, MPI_INT, i, TAG_COMPLETION, MPI_COMM_WORLD );
+			}
+
+			MPI_Send(*plain, ui->passlen, MPI_CHAR, 0, TAG_PLAIN,
+					MPI_COMM_WORLD );
+			break;
+		}
+
+		/* Controllo messaggi remoti */
+		MPI_Iprobe(MPI_ANY_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &flag,
+				&status);
+
+		if (flag) {
+			/* Un worker remoto ha trovato la password */
+			MPI_Recv(&buffer, 1, MPI_INT, MPI_ANY_SOURCE, TAG_COMPLETION,
+					MPI_COMM_WORLD, &status);
+
+			/* Il supervisor chiede la terminazione del worker locale */
+			pthread_cancel(worker_id);
+
+			break;
+		}
+
+		sleep(LOOP_TIMEOUT);
+	}
+	verbose("Crypto", "Password trovata!");
+}
+
+/**
+ * Funzione di lavoro per i processi dedicati alla decrittazione della password (codificata)
+ */
+void worker(char **plain) {
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL );
+	key_gen(my_rank, num_procs, plain);
 }
 
 /*

@@ -14,16 +14,17 @@
 #define CHARSET_SIZE 64
 #define DISPOSITIONS(cs_len, pass_len) (pow((cs_len),(pass_len)));
 #define DISP_PER_PROC(disp, num_procs) (((disp)/(num_procs))+1);
-#define HASH_SIZE 16
 #define PADDING 2
 #define STR_PASSLEN 3
 #define STARTING_CHAR(init, cs_size, pos) (((int)((init)/(pow(cs_size,pos))))%(cs_size))
 #define UI_FIELDS 3
+#define MAX_ALLOC 32
 
 typedef struct string_t string_t;
 typedef struct comb_parms comb_parms;
 typedef struct comb_settings comb_settings;
 typedef struct user_input user_input;
+typedef struct allocation allocation;
 
 
 /**
@@ -67,6 +68,6 @@ int comb(comb_parms *combparms, int pos);
  * @param reserved: Insieme degli indici riservati
  * @param k: Dimensione dell'insieme
  */
-int key_gen(int rank, int num_procs);
+int key_gen(int rank, int num_procs, char **plain);
 
 #endif /* PART_H_ */

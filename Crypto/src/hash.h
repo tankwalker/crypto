@@ -13,6 +13,10 @@
 
 #define A_HEX_VALUE 10
 #define HIGH_BYTE 4
+#define HASH_SIZE 16
+#define BASE 10		// Definisce la base di lavoro per la conversione di una stringa in long tramite 'strtol'
+#define BASE_HASH 16	// Definisce la base di lavoro per la conversione della sequesnza di byte che rappresenta lo hash target della password
+
 
 /**
  * Calcola lo hash MD5 per una qualsiasi stringa in input, il risultato
