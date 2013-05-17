@@ -16,7 +16,7 @@
 #define DISP_PER_PROC(disp, num_procs) (((disp)/(num_procs))+1);
 #define PADDING 2
 #define STR_PASSLEN 3
-#define STARTING_CHAR(init, cs_size, pos) (((int)((init)/(powl(cs_size,pos))))%(cs_size))
+#define STARTING_CHAR(init, cs_size, pos) (((long)((init)/(powl(cs_size, pos))))%(cs_size))
 #define UI_FIELDS 3
 #define MAX_ALLOC 32
 

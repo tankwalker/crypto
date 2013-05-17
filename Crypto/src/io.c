@@ -1,7 +1,10 @@
 /* =============================================================
  * io.c
  *
- * Raccoglie le funzioni di interazione di I/O con l'esterno
+ * Raccoglie le funzioni di I/O con l'utente.
+ * In particolare espone una piccola shell di interazione al fine
+ * di imposare le variabili di controllo per la ricerca della
+ * password.
  *
  *  Created on: 16/mag/2013
  *      Author: mpiuser
@@ -11,11 +14,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "io.h"
 #include "hash.h"
 #include "sym.h"
 #include "part.h"
+#include "signal.h"
+#include "crypto.h"
 
 struct user_input {
 
@@ -25,11 +31,22 @@ struct user_input {
 
 };
 
+struct threads {
+	int num;
+	int active[MAX_THREADS];
+	pthread_t ids[MAX_THREADS];
+
+};
+
 extern int verbose;
+extern threads running;
+extern MPI_Datatype MPI_User_input;
+extern int my_rank;
+extern int num_procs;
 
 void shell(user_input *ui) {
 
-	int ret, passlen, num;
+	int ret, passlen, num, cmd;
 	long phash;
 	unsigned char buffer[256], *token;
 	unsigned char hash[HASH_SIZE];
@@ -57,10 +74,8 @@ void shell(user_input *ui) {
 
 		/* Chiude il programma */
 		if (!strcmp(token, "quit")) {
-
-
-			printf("Esco...\n");
-			break;
+			cmd = CMD_QUIT;
+			MPI_Bcast(&cmd, 1, MPI_INT, 0, MPI_COMM_WORLD);
 		}
 
 		if (!strcmp(token, "help")) {
@@ -96,8 +111,9 @@ void shell(user_input *ui) {
 				token = strtok(NULL, "");
 
 				ret = (int) strtol(token, NULL, BASE);
-				if(ret < 1){
-					printf("La lunghezza della password deve essere maggiore di zero!\n");
+				if (ret < 1) {
+					printf(
+							"La lunghezza della password deve essere maggiore di zero!\n");
 					continue;
 				}
 
@@ -110,7 +126,7 @@ void shell(user_input *ui) {
 				token = strtok(NULL, " \n");
 
 				ret = strToBin(token, ui->hash, 2 * HASH_SIZE);
-				if(ret < 0){
+				if (ret < 0) {
 					printf("Stringa non valida\n");
 					continue;
 				}
@@ -125,7 +141,7 @@ void shell(user_input *ui) {
 				token = strtok(NULL, " \n");
 
 				num = (int) strtol(token, NULL, BASE);
-				if(num < 0 || num > CS_SIZE){
+				if (num < 0 || num > CS_SIZE) {
 					printf("Range non valido [0, 6]\n");
 					continue;
 				}
@@ -144,12 +160,14 @@ void shell(user_input *ui) {
 			printf("Conferma (y, n): ");
 			fflush(stdin);
 
-			while(!fgets(buffer, sizeof(buffer), stdin)){
+			while (!fgets(buffer, sizeof(buffer), stdin)) {
 				continue;
 			}
 
 			if (buffer[0] == 'y') {
-				break;
+				cmd = CMD_EXEC;
+				MPI_Bcast(&cmd, 1, MPI_INT, 0, MPI_COMM_WORLD);
+				return;
 			}
 
 			else {
@@ -165,9 +183,59 @@ void shell(user_input *ui) {
 			printHash(hash);
 		}
 
-		if(!strcmp(buffer, "verbose")){
+		if (!strcmp(buffer, "verbose")) {
 			token = strtok(NULL, " \n");
 			verbose = atoi(token);
 		}
+	}
+
+}
+
+void remote_shell(user_input *ui) {
+	long chunk;
+	long disp;
+	long init;
+	int i, cs_size, cmd;
+	char *cs;
+
+	MPI_Bcast(&cmd, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+	switch (cmd) {
+
+	case CMD_QUIT:
+		break;
+
+	case CMD_ABRT:
+		break;
+
+	case CMD_EXEC:
+
+		printf("DEBUG: Rank %d - I'm waiting\n", my_rank);
+
+			MPI_Bcast(ui, 1, MPI_User_input, 0, MPI_COMM_WORLD );
+
+			printf("DEBUG: Rank %d - Received Bcast\n", my_rank);
+			printf("DEBUG: cs %s - Received cs\n", ui->cs);
+
+
+			cs_size = strlen(ui->cs);
+			disp = DISPOSITIONS(cs_size, ui->passlen)
+			; // Numero di disposizioni da calcolare
+			chunk = DISP_PER_PROC(disp, num_procs)
+			; // Numero di disposizioni che ogni processo deve calcolare
+
+			printf("DEBUG:Rank %d - Numero di disposizioni da calcolare: %lu.\n",
+					my_rank, chunk);
+
+			init = chunk * my_rank;
+
+			if (init <= disp)
+				supervisor();
+			else
+				printf("Nessuna computazione da eseguire.\n");
+		break;
+
+	default:
+		break;
 	}
 }

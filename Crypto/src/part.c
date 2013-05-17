@@ -71,7 +71,7 @@ extern user_input *ui;
  * @return: 0 in caso di fallimento, >0 altrimenti
  */
 int test(char *pass) {
-	if(!(count % 10000))
+	if(!(count % 10000000))
 		printf("Processo %d => %s\n", my_rank, pass);
 	count++;
 

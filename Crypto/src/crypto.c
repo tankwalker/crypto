@@ -31,11 +31,20 @@ struct user_input {
 
 };
 
+struct threads {
+	int active[MAX_THREADS];
+	pthread_t ids[MAX_THREADS];
+
+};
+
+threads running;
 user_input *ui;
 
 extern int verbose, slow;
 int my_rank; /* rank of process */
 int num_procs; /* number of processes */
+char last_try[256];
+MPI_Datatype MPI_User_input;
 
 int main(int argc, char *args[]) {
 	char message[100]; /* storage for message */
@@ -43,15 +52,11 @@ int main(int argc, char *args[]) {
 	int dest = 0; /* rank of receiver */
 	int passlen;
 	int tag = 0; /* tag for messages */
-	long chunk;
-	long disp;
-	long init;
+
 	MPI_Status status; /* return status for receive */
+	int cmd;		/* Comando ricevuto dal master */
 
 	int blockslen[UI_FIELDS];
-
-	int i, cs_size;
-	char *cs;
 
 	if (argc > 1) {
 		verbose = atoi(args[1]);
@@ -79,17 +84,11 @@ int main(int argc, char *args[]) {
 	if (slow)
 		sleep(my_rank);
 
-	/* Avvia la shell per il processo master */
-	if (!my_rank) {
-		shell(ui);
-	}
-
 	blockslen[0] = CHARSET_SIZE + 1;
 	blockslen[1] = HASH_SIZE + 1;
 	blockslen[2] = 1;
 
 	MPI_Datatype types[UI_FIELDS] = { MPI_CHAR, MPI_CHAR, MPI_INT };
-	MPI_Datatype MPI_User_input;
 	MPI_Aint offsets[UI_FIELDS];
 
 	offsets[0] = 0;
@@ -100,27 +99,17 @@ int main(int argc, char *args[]) {
 			&MPI_User_input);
 	MPI_Type_commit(&MPI_User_input);
 
-	printf("DEBUG: Rank %d - I'm waiting\n", my_rank);
-	MPI_Bcast(ui, 1, MPI_User_input, 0, MPI_COMM_WORLD );
-	printf("DEBUG: Rank %d - Received Bcast\n", my_rank);
-	printf("DEBUG: cs %s - Received cs\n", ui->cs);
 
-
-	cs_size = strlen(ui->cs);
-	disp = DISPOSITIONS(cs_size, ui->passlen)
-	; // Numero di disposizioni da calcolare
-	chunk = DISP_PER_PROC(disp, num_procs)
-	; // Numero di disposizioni che ogni processo deve calcolare
-
-	printf("DEBUG:Rank %d - Numero di disposizioni da calcolare: %lu.\n",
-			my_rank, chunk);
-
-	init = chunk * my_rank;
-
-	if (init <= disp)
+	/* Avvia la shell per il processo master */
+	if (!my_rank) {
+		shell(ui);
 		supervisor();
-	else
-		printf("Nessuna computazione da eseguire.\n");
+	}
+
+	/* Altrimenti rimane in attesa di istruzioni dal master */
+	else {
+		remote_shell(ui);
+	}
 
 	MPI_Type_free(&MPI_User_input);
 
@@ -133,7 +122,8 @@ int main(int argc, char *args[]) {
 }
 
 /**
- * Main loop per il supervisore (processo master)
+ * Main loop per il thread di supervisione
+ * sulla computazione corrente del relativo worker thread
  */
 void supervisor() {
 	int flag, i;
@@ -146,6 +136,14 @@ void supervisor() {
 	pthread_create(&worker_id, NULL, worker, &plain);
 
 	while (1) {
+		MPI_Iprobe(0, CMD_ABRT, MPI_COMM_WORLD, &flag, &status);
+
+		if(flag){
+			MPI_Recv(&flag, 1, MPI_INT, 0, CMD_ABRT, MPI_COMM_WORLD, &status);
+			pthread_cancel(worker_id);
+			return;
+		}
+
 		/* Controllo messaggi in locale */
 		if (plain != NULL ) {
 			/* Il worker locale ha trovato la password */
@@ -175,6 +173,7 @@ void supervisor() {
 
 		if (flag) {
 			/* Un worker remoto ha trovato la password */
+
 			verbose("Crypto", "Messaggio remoto ricevuto");
 			//printf("Processo %d: Messaggio remoto ricevuto\n", my_rank);
 
