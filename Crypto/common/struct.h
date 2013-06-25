@@ -72,8 +72,11 @@ typedef struct user_input {
 typedef struct th_parms {
 
 	char last_try[MAX_PASSWD_LEN];
+	char *plain;
 	int count;
-	pthread_mutex_t mutex;
+	pthread_mutex_t rlock;
+	pthread_mutex_t wlock;
+	pthread_cond_t waiting;
 
 } th_parms;
 

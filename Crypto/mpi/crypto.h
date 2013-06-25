@@ -25,7 +25,7 @@ void supervisor();
 
 int audit(th_parms *parms);
 
-int listener(char **plain);
+int listener(th_parms *parms);
 
 int worker(th_parms *parms);
 

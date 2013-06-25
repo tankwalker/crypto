@@ -67,11 +67,9 @@ int comb(comb_parms *parms, int pos) {
 			return 1;
 		}
 
-		if(pthread_mutex_trylock(&audit_t->mutex)){
 			strcpy(audit_t->last_try, passwd);
 			audit_t->count = count;
-			pthread_mutex_unlock(&audit_t->mutex);
-		}
+			pthread_cond_signal(&audit_t->waiting);
 
 		// altrimenti si prosegue
 		return 0;

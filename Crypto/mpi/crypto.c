@@ -154,13 +154,15 @@ void supervisor() {
 		pthread_create(rshell_id, NULL, remote_shell, &cancel);
 */
 	plain = malloc(MAX_PASSWD_LEN);
+	parms.plain = plain;
 
-
-	//parms.last_try = plain;
+	pthread_mutex_init(&parms.rlock, NULL);
+	pthread_mutex_init(&parms.wlock, NULL);
+	pthread_cond_init(&parms.waiting, NULL);
 
 	bzero(plain, MAX_PASSWD_LEN);
 
-	pthread_create(&listener_id, NULL, listener, &plain);
+	pthread_create(&listener_id, NULL, listener, &parms);
 
 	if(auditing)
 		pthread_create(&audit_id, NULL, audit, &parms);
@@ -192,12 +194,13 @@ void supervisor() {
 	}
 }
 
-int listener(char **plain) {
+int listener(th_parms *parms) {
 	MPI_Status status;
-	char buffer[MAX_PASSWD_LEN];
+	char buffer[MAX_PASSWD_LEN], *plain;
 	int flag, quorum;
 
 	quorum = num_procs;
+	plain = parms->plain;
 
 	/* Il master controlla l'attività degli altri worker */
 	if(!my_rank) {
@@ -205,6 +208,7 @@ int listener(char **plain) {
 		/* Finché esistono worker attivi */
 		while(quorum){
 
+			pthread_mutex_lock(&parms->rlock);
 			/* Controllo messaggio terminazione worker */
 			MPI_Iprobe(MPI_ANY_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &flag, &status);
 			if(flag){
@@ -213,7 +217,7 @@ int listener(char **plain) {
 
 				if(flag){
 					/* Un worker ha effettivamente trovato la password */
-					MPI_Recv(*plain, MAX_PASSWD_LEN, MPI_CHAR, status.MPI_SOURCE, TAG_PLAIN, MPI_COMM_WORLD, &status);
+					MPI_Recv(plain, MAX_PASSWD_LEN, MPI_CHAR, status.MPI_SOURCE, TAG_PLAIN, MPI_COMM_WORLD, &status);
 					flag = status.MPI_SOURCE;
 					break;
 				}
@@ -241,11 +245,12 @@ int listener(char **plain) {
 				break;
 			}
 
+			pthread_mutex_unlock(&parms->rlock);
+
 			/* Attesa prima del prossimo polling per limitare l'uso delle risorse */
 			usleep(LOOP_TIMEOUT);
 		}
 	}
-
 	MPI_Bcast(&flag, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
 	return flag;
@@ -270,7 +275,9 @@ int worker(th_parms *parms) {
 		 * ha terminato la propria esecuzione.
 		 * E' possibile, allora, terminare il thread listener
 		 */
+	pthread_mutex_lock(&parms->rlock);
 	MPI_Send(&flag, 1, MPI_INT, 0, TAG_COMPLETION, MPI_COMM_WORLD);
+	pthread_mutex_unlock(&parms->rlock);
 
 	if(flag){
 		// Invia la password al master
@@ -292,20 +299,21 @@ int audit(th_parms *parms){
 
 	while(1){
 
-		pthread_mutex_lock(&parms->mutex);
+		pthread_mutex_lock(&parms->wlock);
+		pthread_cond_wait(&parms->waiting, &parms->rlock);
 
-		if(parms->count % 10485)
+		if(!(parms->count % 10485))
 			continue;
 
-		//debug("AUDIT", "Accesso last_try\n");
-		//TODO:count
 		strcpy(tempt, parms->last_try);
+
+		pthread_mutex_unlock(&parms->wlock);
 
 		//debug("AUDIT", "last_try='%s', count='%d'\n", tempt, parms->count);
 
-		pthread_mutex_unlock(&parms->mutex);
-
+		pthread_mutex_lock(&parms->rlock);
 		MPI_Send(tempt, MAX_PASSWD_LEN, MPI_CHAR, 0, TAG_AUDIT, MPI_COMM_WORLD);
+		pthread_mutex_unlock(&parms->rlock);
 	}
 
 	return 0;
