@@ -10,22 +10,26 @@
 
 #include <math.h>
 
-#define BCAST_TAG 0
-#define CHARSET_SIZE 64
+#include "mem.h"
+#include "struct.h"
+
 #define DISPOSITIONS(cs_len, pass_len) (powl((cs_len),(pass_len)));
 #define DISP_PER_PROC(disp, num_procs) (((disp)/(num_procs))+1);
-#define PADDING 2
-#define STR_PASSLEN 3
-#define STARTING_CHAR(init, cs_size, pos) (((long)((init)/(powl(cs_size, pos))))%(cs_size))
-#define UI_FIELDS 3
-#define MAX_ALLOC 32
+#define STARTING_CHAR(init, cs_size, pos) (((long)((init)/(powl(cs_size, pos))))%(cs_size));
 
-typedef struct string_t string_t;
-typedef struct comb_parms comb_parms;
-typedef struct comb_settings comb_settings;
-typedef struct user_input user_input;
-typedef struct allocation allocation;
+#define BCAST_TAG 0
 
+
+/**
+ * Effettua il test sullo hash MD5 per la chiave generata.
+ *
+ * temporaneamente stampa solo la stringa prodotta
+ *
+ * @param str: Stringa da verificare
+ *
+ * @return: 0 in caso di fallimento, >0 altrimenti
+ */
+int test(char *pass);
 
 /**
  * Verifica che l'intero 'pos' sia presente all'interno dell'insisme
@@ -39,9 +43,10 @@ typedef struct allocation allocation;
  * @param pos: Intero da cercare
  * @param set: Puntatore (array) ad intero rappresentante il set
  * @param k: Dimensione dell'insieme
+ *
  * @return: 0 in caso di fallimento, >0 altrimenti
  */
-int contains(int pos, int *set, int k);
+//int contains(int pos, int *set, int k);
 
 /**
  * Calcola tutte le disposizione (con ripetizione) per una stringa
@@ -62,14 +67,39 @@ int comb(comb_parms *combparms, int pos);
 
 
 /**
+ * Calcola la combinazione iniziale da cui il processo ennesimo
+ * del gruppo di lavoro MPI deve cominciare la propria esecuzione.
+ *
+ * Il calcolo è legato al rank del processo all'interno dello stesso
+ * gruppo di comunicazione MPI; nel caso si utilizzino gruppi differenti
+ * non è garantito che il punto di partenza sia diverso per ogni
+ * processo, pertanto non è possibile che venga eseguito lavoro
+ * in eccesso.
+ *
+ * @parm init: Interno rappresentante il numero progressivo della combinazione iniziale
+ * 		tale numero è calcolato a partire dal renk del processo
+ * @parm cs_size: Dimensione del charset di lavoro
+ * @parm passlen: Dimenesione della password che si vuole decrittare
+ *
+ * @return Zero in caso di successo, un interno negativo che rappresenta il codice
+ * di errore relativo
+ */
+int *compute_starting_point(long init, int cs_size, int passlen);
+
+/**
  * Punto di ingresso del programma di prova per la generazione
  * delle disposizioni su più processi/thread.
  *
  * @param reserved: Insieme degli indici riservati
  * @param k: Dimensione dell'insieme
  */
-int key_gen(int rank, int num_procs, char **plain);
+int key_gen(int rank, int num_procs, char **plain, th_parms *audit);
 
+
+/**
+ * Si occupa di pulire le strutture dati utilizzate dal thread, al
+ * momento della richiesta di canellazione di quest'ultimo.
+ */
 void work_cleanup(allocation *alloc);
 
 #endif /* PART_H_ */

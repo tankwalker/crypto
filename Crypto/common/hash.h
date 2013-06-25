@@ -8,8 +8,8 @@
 #ifndef HASH_H_
 #define HASH_H_
 
-#define BASE_16 16
-#define X64
+// #define BASE_16 16
+// #define X64
 
 #define A_HEX_VALUE 10
 #define HIGH_BYTE 4
@@ -20,8 +20,7 @@
 
 /**
  * Calcola lo hash MD5 per una qualsiasi stringa in input, il risultato
- * viene memorizzato a partire dal puntatore a carattere 'hash' preso come
- * parametro.
+ * viene memorizzato a partire dal puntatore a carattere 'hash'.
  *
  * @param plain - Puntatore a carattere che rappresenta la stringa su cui calcolare lo hash
  * @param hash . Puntatore a carattere che conterrà il valore di hash calcolato
@@ -61,5 +60,18 @@ void printHash(unsigned char *hash);
  * @return Zero in caso di successo, un codice di errore altrimenti //TODO: gestione errori
  */
 int strToBin(char *string, char *buffer, int size);
+
+
+/**
+ * Effettua il confronto dei due hash passati come argomento e restituisce un intero.
+ * Nel caso i due codici hash siano uguali viene ritornato il valore 0, altrimenti
+ * un intero positivo.
+ *
+ * @param hash1 - Codice hash a 16 caratteri
+ * @param hash2 - Codice hash a 16 caratteri
+ *
+ * @return Zero in caso 'hash1' e 'hash2' siano uguali oppure -1 se 'hash1' è minore, 1 se maggiore.
+ */
+int hashcmp(char *hash1, char *hash2);
 
 #endif /* HASH_H_ */

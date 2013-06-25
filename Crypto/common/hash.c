@@ -21,7 +21,7 @@ int hashMD5(char *plain, unsigned char *hash) {
 	int size, i;
 
 	td = mhash_init(MHASH_MD5);
-	if (td == MHASH_FAILED ) {
+	if (td == MHASH_FAILED) {
 		return -1;		//TODO: Aggiungere codice di errore
 	}
 
@@ -59,7 +59,7 @@ void printHash(unsigned char *hash) {
 		printf("%.2x", hash[i]);
 	}
 
-	printf("\n");
+	fflush(stdout);
 }
 
 int strToBin(char *token, char *dest, int size) {
@@ -85,4 +85,8 @@ int strToBin(char *token, char *dest, int size) {
 	}
 
 	return 0;
+}
+
+int hashcmp(char *hash1, char *hash2){
+	return memcmp(hash1, hash2, HASH_SIZE);
 }
