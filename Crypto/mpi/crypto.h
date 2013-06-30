@@ -17,6 +17,8 @@
 #define TAG_PLAIN 3				// Messaggio di comunicazione della password in chiaro
 #define TAG_AUDIT 4				// Messaggio di comunicazione dell'ultima password tentata
 
+#define TH_NUM 4
+#define PERCENTAGE 10
 #define LOOP_TIMEOUT 500		// Tempo (us) di attesa nel cilco di controllo sulla condizione di terminazione
 
 int launchMPI();
@@ -24,6 +26,8 @@ int launchMPI();
 void supervisor();
 
 int audit(th_parms *parms);
+
+int computePercentage();
 
 int listener(th_parms *parms);
 

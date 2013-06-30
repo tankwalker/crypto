@@ -13,6 +13,7 @@
 
 #include "hash.h"
 #include "sym.h"
+#include <pthread.h>
 
 #define MAX_THREADS 8
 

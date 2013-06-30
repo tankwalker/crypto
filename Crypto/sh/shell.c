@@ -47,7 +47,7 @@ user_input *ui;
 /**
  * Gestore di segnale di terminazione del processo mpirun
  */
-void abort_mpi(){
+void sh_abort_mpi(){
 	int ret = kill(mpi_process, SIGTERM);
 	printf("Killing process (%d)= %d\n", mpi_process, ret);
 }
@@ -65,7 +65,7 @@ void quit(){
 void sig_halt(){
 
 	if(mpi_process)
-		abort_mpi();
+		sh_abort_mpi();
 
 	quit();
 	printf("Quitting...\n");
@@ -181,6 +181,7 @@ void shell() {
 			printHash(ui->hash);
 			printf("\n\tpasslen = %d\n", ui->passlen);
 			printf("\tNumero processi MPI: '%s'\n", num_procs);
+			printf("\tAuditing attivo[T/F]: '%d'\n", ui->auditing);
 			printf("\tConferma? (y, n) ");
 			fflush(stdout);
 
@@ -241,11 +242,13 @@ void shell() {
 		else if (!strcmp(buffer, "auditing")) {
 			token = strtok(NULL, " \n");
 			ui->auditing = (int) strtol(token, NULL, BASE);
+			if(ui->auditing) printf("Impostato processo di auditing\n");
+			else printf("Annulato processo di auditing\n");
 		}
 
 		// -------------- ABORT -----------------
 		else if (!strcmp(buffer, "abort")){
-			abort_mpi();
+			abort();
 		}
 
 		// -------------- QUIT -----------------

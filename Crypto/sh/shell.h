@@ -27,7 +27,7 @@
  */
 void shell();
 
-void abort_mpi();
+void sh_abort_mpi();
 
 void quit();
 

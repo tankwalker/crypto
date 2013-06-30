@@ -69,7 +69,7 @@ int comb(comb_parms *parms, int pos) {
 
 			strcpy(audit_t->last_try, passwd);
 			audit_t->count = count;
-			pthread_cond_signal(&audit_t->waiting);
+			pthread_cond_broadcast(&audit_t->waiting);
 
 		// altrimenti si prosegue
 		return 0;
@@ -121,7 +121,7 @@ int *compute_starting_point(long init, int cs_size, int passlen) {
 
 		int p = STARTING_CHAR(init, cs_size, i);
 		starting_point[passlen - i - 1] = p;
-		printf("DEBUG:Rank %d - char in pos %d:%d\n", my_rank, i, p);
+		//printf("DEBUG:Rank %d - char in pos %d:%d\n", my_rank, i, p);
 
 	}
 

@@ -22,7 +22,6 @@
 #include <sys/ipc.h>
 #include <errno.h>
 #include <signal.h>
-
 #include <unistd.h>
 #include <linux/unistd.h>
 #include <stdlib.h>
@@ -115,11 +114,10 @@ int main(int argc, char *argv[]) {
 
 	debug("MPI", "Avvio thread supervisor\n");
 
-	pthread_create(&superv_id, NULL, supervisor, NULL);
-	pthread_join(superv_id, &errno);
+	pthread_create(&superv_id, NULL, (void *)supervisor, NULL);
+	pthread_join(superv_id, (void **)&errno);
 
-	debug("MPI", "Supervisor terminato con codice %d\n", *cerrno);
-
+	debug("MPI", "Supervisor terminato con codice %d\n", errno);
 
 	shmdt(ui);
 
@@ -136,8 +134,7 @@ int main(int argc, char *argv[]) {
  * Main loop per il thread di supervisione sulla computazione corrente del relativo worker thread
  */
 void supervisor() {
-	int flag, i, cancel, *lst_errno;
-	int wrk_errno;
+	int flag, i, cancel, *lst_errno, *wrk_errno, *aud_errno;
 	char *plain;
 	th_parms parms;
 	pthread_t worker_id, shell_id, listener_id, audit_id;
@@ -154,6 +151,9 @@ void supervisor() {
 		pthread_create(rshell_id, NULL, remote_shell, &cancel);
 */
 	plain = malloc(MAX_PASSWD_LEN);
+	lst_errno = malloc(TH_NUM * sizeof(int));
+	wrk_errno = lst_errno + 1;
+	aud_errno = wrk_errno + 1;
 	parms.plain = plain;
 
 	pthread_mutex_init(&parms.rlock, NULL);
@@ -162,16 +162,16 @@ void supervisor() {
 
 	bzero(plain, MAX_PASSWD_LEN);
 
-	pthread_create(&listener_id, NULL, listener, &parms);
+	pthread_create(&listener_id, NULL, (void *)listener, &parms);
 
 	if(auditing)
-		pthread_create(&audit_id, NULL, audit, &parms);
+		pthread_create(&audit_id, NULL, (void *)audit, &parms);
 
-	pthread_create(&worker_id, NULL, worker, &parms);
+	pthread_create(&worker_id, NULL, (void *)worker, &parms);
 
 	debug("SV", "attesa listener...\n");
 
-	pthread_join(listener_id, &lst_errno);
+	pthread_join(listener_id, (void **)&lst_errno);
 
 	debug("SV", "listener terminato!\n");
 
@@ -179,11 +179,14 @@ void supervisor() {
 	 * un worker thread remoto ha trovato la password o l'ha trovata quello locale
 	 * oppure è stata richiesta la terminazione forzata del programma dall'utente */
 	pthread_cancel(worker_id);
-	if(auditing)
+	if(auditing){
 		pthread_cancel(audit_id);
+		pthread_join(audit_id, (void **)&aud_errno);
+	}
 
-	pthread_join(worker_id, &wrk_errno);
-	debug("SV", "Worker thread del processo %d terminato con codice %d\n", my_rank, wrk_errno);
+	pthread_join(worker_id, (void **)&wrk_errno);
+	//debug("SV", "Worker thread del processo %d terminato con codice %d\n", my_rank, *wrk_errno);
+	//debug("SV", "Audit thread del processo %d terminato con codice %d\n", my_rank, *aud_errno);
 
 	if(!my_rank){
 		if(strlen(plain) != 0)
@@ -208,7 +211,7 @@ int listener(th_parms *parms) {
 		/* Finché esistono worker attivi */
 		while(quorum){
 
-			pthread_mutex_lock(&parms->rlock);
+			//pthread_mutex_lock(&parms->rlock);
 			/* Controllo messaggio terminazione worker */
 			MPI_Iprobe(MPI_ANY_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &flag, &status);
 			if(flag){
@@ -245,7 +248,7 @@ int listener(th_parms *parms) {
 				break;
 			}
 
-			pthread_mutex_unlock(&parms->rlock);
+			//pthread_mutex_unlock(&parms->rlock);
 
 			/* Attesa prima del prossimo polling per limitare l'uso delle risorse */
 			usleep(LOOP_TIMEOUT);
@@ -275,9 +278,9 @@ int worker(th_parms *parms) {
 		 * ha terminato la propria esecuzione.
 		 * E' possibile, allora, terminare il thread listener
 		 */
-	pthread_mutex_lock(&parms->rlock);
+	//pthread_mutex_lock(&parms->rlock);
 	MPI_Send(&flag, 1, MPI_INT, 0, TAG_COMPLETION, MPI_COMM_WORLD);
-	pthread_mutex_unlock(&parms->rlock);
+	//pthread_mutex_unlock(&parms->rlock);
 
 	if(flag){
 		// Invia la password al master
@@ -293,30 +296,46 @@ int audit(th_parms *parms){
 
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	char tempt[MAX_PASSWD_LEN];
-	int count;
+	int percentage;
 
-	debug("AUDIT", "Thread auditing avviato sul processo %d", my_rank);
+	percentage = computePercentage();
+	debug("AUDIT", "Thread auditing avviato sul processo %d\n", my_rank);
+	debug("AUDIT", "Verrà stampata una password ogni %d password\n", percentage);
 
 	while(1){
 
-		pthread_mutex_lock(&parms->wlock);
+		//pthread_mutex_lock(&parms->wlock);
+		pthread_mutex_lock(&parms->rlock);
 		pthread_cond_wait(&parms->waiting, &parms->rlock);
 
-		if(!(parms->count % 10485))
+		if(parms->count % percentage){
+			pthread_mutex_unlock(&parms->rlock);
 			continue;
+		}
 
 		strcpy(tempt, parms->last_try);
 
-		pthread_mutex_unlock(&parms->wlock);
+		pthread_mutex_unlock(&parms->rlock);
+		//pthread_mutex_unlock(&parms->wlock);
 
 		//debug("AUDIT", "last_try='%s', count='%d'\n", tempt, parms->count);
 
-		pthread_mutex_lock(&parms->rlock);
+		//pthread_mutex_lock(&parms->rlock);
 		MPI_Send(tempt, MAX_PASSWD_LEN, MPI_CHAR, 0, TAG_AUDIT, MPI_COMM_WORLD);
-		pthread_mutex_unlock(&parms->rlock);
+		//pthread_mutex_unlock(&parms->rlock);
+
+		//debug("AUDIT", "Tentativo '%s' inviato al master\n", tempt);
 	}
 
 	return 0;
+}
+
+int computePercentage(){
+	int chunk, disp;
+	disp = DISPOSITIONS(strlen(ui->cs), ui->passlen); 	// Numero di disposizioni da calcolare
+	chunk = DISP_PER_PROC(disp, num_procs); 			// Numero di disposizioni che ogni processo deve calcolare
+
+	return (int)(chunk / PERCENTAGE);
 }
 
 /**
