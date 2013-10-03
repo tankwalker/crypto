@@ -11,6 +11,7 @@
  * =============================================================
  */
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,8 +32,8 @@
 #include "cerrno.h"
 #include "verbose.h"
 
+#define STR_INT_SIZE 16
 
-extern int verbose;
 extern char *charsets[];
 extern char *help_msg;
 // extern threads running;
@@ -53,10 +54,7 @@ void sh_abort_mpi(){
 }
 
 void quit(){
-	struct shmid_ds ds;
-
-	shmdt(ui);
-	shmctl(shm_id, IPC_RMID, &ds);
+	free(ui);
 }
 
 /**
@@ -77,6 +75,7 @@ void shell() {
 
 	char shm_str[32];
 	char num_procs[32];
+	char spasslen[STR_INT_SIZE], sverbose[STR_INT_SIZE], sauditing[STR_INT_SIZE], sdictionary[STR_INT_SIZE];
 	int ret, num;
 	unsigned char buffer[256], *token;
 	unsigned char hash[HASH_SIZE];
@@ -88,8 +87,10 @@ void shell() {
 	printf("           Crypto\n");
 	printf("==============================\n");
 
+	/* Azzeramento aree di memoria */
 	bzero(ui, sizeof(user_input));
-	strcpy(num_procs, "1");			/// Usi MPI...almeno lavora con 2 processi, no?!
+	strcpy(num_procs, "1");
+
 
 	/* Arma i segnali di terminazione forzata */
 	signal(SIGHUP, sig_halt);
@@ -139,15 +140,25 @@ void shell() {
 			if (!strcmp(token, "passwd")) {
 				token = strtok(NULL, " \n");
 
-				ret = strToBin(token, ui->hash, 2 * HASH_SIZE);
-				if (ret < 0) {
-					printf("Stringa non valida\n");
+				if(token == NULL){
+					printf("usage: set passwd [MD5-hash]\n");
 					continue;
 				}
 
+				//ret = strToBin(token, ui->hash, 2 * HASH_SIZE);
+				if(strchr(token, 'x') != NULL)
+					token = strchr(token, 'x')+1;
+
+				if (strlen(token) - 2*HASH_SIZE) {
+					printf("Stringa non valida\n");
+					continue;
+				}
+				strncpy(ui->hash, token, 2*HASH_SIZE+1);
+
 				printf("Impostata la password target = ");
-				printHash(ui->hash);
-				printf("\n");
+				printf("%s\n", ui->hash);
+				//printHash(ui->hash);
+				//printf("\n");
 
 			}
 
@@ -174,14 +185,19 @@ void shell() {
 		}
 
 		// -------------- RUN -----------------
-		else if (!strcmp(buffer, "run")) {
+		else if (!strcmp(token, "run")) {
+			token = strtok(NULL, " -p");
+			if(token != NULL)
+				printf("Profiler attivo\n\n");
+
 			pprintf("SHELL", "Avvio procedura decrittazione con parametri:\n");
 			printf("\tcharset = '%s'\n", ui->cs);
-			printf("\tpasswd: ");
-			printHash(ui->hash);
+			printf("\tpasswd: %s", ui->hash);
+			//printHash(ui->hash);
 			printf("\n\tpasslen = %d\n", ui->passlen);
 			printf("\tNumero processi MPI: '%s'\n", num_procs);
 			printf("\tAuditing attivo[T/F]: '%d'\n", ui->auditing);
+			printf("\tAttacco a dizionario abilitato[T/F]: '%d'\n", ui->dictionary);
 			printf("\tConferma? (y, n) ");
 			fflush(stdout);
 
@@ -190,21 +206,43 @@ void shell() {
 			}
 
 			if (buffer[0] == 'y') {
+				printf("\n\n");
 				debug("SHELL", "Avvio MPI...\n");
 				ret = 0;
 
-				sprintf(shm_str, "%d", shm_id);
-				void *args[] = {"mpirun", "-np", num_procs, "launchMPI", shm_str, NULL};
+				sprintf(spasslen, "%d", ui->passlen);
+				sprintf(sverbose, "%d", ui->verbose);
+				sprintf(sauditing, "%d", ui->auditing);
+				sprintf(sdictionary, "%d", ui->dictionary);
 
-				debug("SHELL", "exec %s %s %s %s %s\n", args[0], args[1], args[2], args[3], args[4]);
+				void *args[] = {"perf", "stat", "-e", "task-clock,cpu-clock,context-switches,"
+						"cpu-migrations,page-faults,alignment-faults,cycles,"
+						"stalled-cycles-frontend,stalled-cycles-backend,"
+						"instructions,branches,branch-misses,cache-references,cache-misses,"
+						"L1-dcache-loads,L1-dcache-stores,L1-icache-loads,L1-icache-load-misses,"
+						"L1-icache-prefetch,L1-icache-prefetch-misses",
+						"mpirun", "-np", num_procs, "--hostfile", "runners.host",
+								"launchMPI", ui->hash, spasslen, ui->cs, sverbose,
+								sauditing, sdictionary, NULL};
+
+				debug("SHELL", "exec %s %s %s %s %s %s %s %s %s %s %s\n",
+						args[0], args[1], args[2], args[3], args[4], args[5],
+						args[7], args[8], args[9], args[10], args[11]);
 
 				mpi_process = fork();
 				if (!mpi_process){
-					ret = execvp(*args, args);
+					ret = execvp(*(args+4), args+4);
+					if(token != NULL){
+						printf("perf: redirezione stdout\n");
+						stdout = fopen("./perf.stat", "rw");
+						ret = execvp(*args, args);
+					}
 					debug("SHELL", "execvp=%d\n", ret);
 
-					if(ret < 0)
+					if(ret < 0){
 						debug("SHELL", "Errore invocazione '%s': %s\n", args[0], strerror(errno));
+						exit(-1); //todo: add error type
+					}
 				}
 
 				debug("SHELL", "Processo MPI avviato con PID = %d\n", mpi_process);
@@ -227,7 +265,7 @@ void shell() {
 			}
 
 			hashMD5(token, hash);
-			printf("> MD5('%s') = ", buffer);
+			printf("> MD5('%s') = ", token);
 			printHash(hash);
 			printf("\n");
 		}
@@ -235,24 +273,45 @@ void shell() {
 		// -------------- VERBOSE -----------------
 		else if (!strcmp(buffer, "verbose")) {
 			token = strtok(NULL, " \n");
+			if(token == NULL){
+				printf("usage verbose {0,1}\n");
+				continue;
+			}
 			ui->verbose = (int) strtol(token, NULL, BASE);
 		}
 
 		// -------------- AUDITING -----------------
 		else if (!strcmp(buffer, "auditing")) {
 			token = strtok(NULL, " \n");
+			if(token == NULL){
+				printf("usage auditing {0,1}\n");
+				continue;
+			}
 			ui->auditing = (int) strtol(token, NULL, BASE);
 			if(ui->auditing) printf("Impostato processo di auditing\n");
 			else printf("Annulato processo di auditing\n");
 		}
 
+		// -------------- DICTIONARY ATTACK -----------------
+		//TODO Scelta dizionario da usare
+		else if (!strcmp(buffer, "dictionary")) {
+			token = strtok(NULL, " \n");
+			if(token == NULL){
+				printf("usage dictionary {0,1}\n");
+				continue;
+			}
+			ui->dictionary = (int) strtol(token, NULL, BASE);
+			if(ui->dictionary) printf("Attacco a dizionario abilitato\n");
+			else printf("Attacco a dizionario disabilitato\n");
+		}
+
 		// -------------- ABORT -----------------
 		else if (!strcmp(buffer, "abort")){
-			abort();
+			sh_abort_mpi();
 		}
 
 		// -------------- QUIT -----------------
-		else if (!strcmp(token, "quit")) {
+		else if (!strcmp(token, "quit") ||! strcmp(token, "exit")) {
 			sig_halt();
 			return;
 		}
@@ -279,10 +338,7 @@ int wait_child() {
  */
 int main(int argc, char *args[]){
 
-	shm_id = shmget(IPC_PRIVATE, sizeof(user_input), IPC_CREAT | PERMS);
-	ui = shmat(shm_id, NULL, 0);
-
-	debug("SHELL", "Shared memory attach sul segmento %d: (%s)\n", shm_id, strerror(errno));
+	ui = malloc(sizeof(user_input));
 
 	shell();
 

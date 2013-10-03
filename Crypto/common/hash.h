@@ -8,14 +8,11 @@
 #ifndef HASH_H_
 #define HASH_H_
 
-// #define BASE_16 16
-// #define X64
-
-#define A_HEX_VALUE 10
+#define A_HEX_VALUE 10	/// Valore del letterale 'A' per la rappresentazione esadecimale
 #define HIGH_BYTE 4
-#define HASH_SIZE 16
-#define BASE 10		// Definisce la base di lavoro per la conversione di una stringa in long tramite 'strtol'
-#define BASE_HASH 16	// Definisce la base di lavoro per la conversione della sequesnza di byte che rappresenta lo hash target della password
+#define HASH_SIZE 16	/// Dimensione in byte di un hash MD5
+#define BASE 10			/// Base di lavoro per la conversione di una stringa in long tramite 'strtol'
+#define BASE_HASH 16	/// Base di conversione della sequesnza di byte che rappresenta lo hash target della password
 
 
 /**
@@ -50,7 +47,7 @@ void printHash(unsigned char *hash);
 
 
 /**
- * Converte la rappresentazione esadecimale in formato stringa nella corrispettiva
+ * Converte una rappresentazione esadecimale in formato stringa nella corrispettiva
  * rappresentazione binaria.
  *
  * @param string - Puntatora a carattere della stringa da converire

@@ -11,17 +11,24 @@
 #define VERBOSE_H_
 
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 #define DEBUG 1
 #define VERBOSE 1
-#define HEAD_PMT "%s:: "
+#define HEAD_PMT "[%d] - %s:: "
 
 #ifdef DEBUG
 
 #define debug(head, ...) do {		\
-	printf(HEAD_PMT, (head));		\
-	printf(__VA_ARGS__);			\
-	} while(0)
+		printf(HEAD_PMT, getpid(), (head));	\
+		printf(__VA_ARGS__);		\
+} while(0)
+
+#define panic(head, err, ...) do {		\
+	debug(head, __VA_ARGS__);				\
+	exit(err);						\
+} while(0)
 
 #else
 
@@ -29,20 +36,20 @@
 
 #endif
 
-/*#define debug(msg) #if DEBUG \
-	printf("DEBUG:: %s\n", (msg)) \
-	#endif*/
+#define rdebug(head, fname, retvalue) do {												\
+	debug(head, "%s thread terminato - %d (%s)\n", fname, retvalue, strerror(retvalue));	\
+	} while(0)
 
 #define verbose(head, ...) do { 	\
 	if(VERBOSE){ 					\
-		printf(HEAD_PMT, (head)); 	\
+		printf(HEAD_PMT, getpid(), (head)); 	\
 		printf(__VA_ARGS__); 		\
 	}								\
 	} while(0)
 
 
 #define pprintf(head, ...) do {		\
-		printf(HEAD_PMT, (head));	\
+		printf(HEAD_PMT, getpid(), (head));	\
 		printf(__VA_ARGS__);		\
 	} while(0);
 

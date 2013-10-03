@@ -14,6 +14,7 @@
 #include "hash.h"
 #include "sym.h"
 #include <pthread.h>
+#include <semaphore.h>
 
 #define MAX_THREADS 8
 
@@ -65,26 +66,22 @@ struct comb_parms {
 
 typedef struct user_input {
 	char cs[CHARSET_SIZE + 1];
-	unsigned char hash[HASH_SIZE];
+	unsigned char hash[2*HASH_SIZE+1];
 	int passlen;
 	int verbose, auditing;
+	int dictionary;
 } user_input;
 
 typedef struct th_parms {
 
 	char last_try[MAX_PASSWD_LEN];
-	char *plain;
-	int count;
-	pthread_mutex_t rlock;
-	pthread_mutex_t wlock;
+	char plain[MAX_PASSWD_LEN];
+	long count;
+	int wterm;
+	sem_t mutex;
+	pthread_mutex_t lock;
 	pthread_cond_t waiting;
 
 } th_parms;
-
-/**
- * Elenco dei thread attivi per consentirne la cancellazione
- * coerente. TODO >>> Attualmente non utilizzata <<<
- */
-typedef struct threads threads;
 
 #endif /* STRUCT_H_ */

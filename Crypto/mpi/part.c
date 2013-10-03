@@ -1,8 +1,12 @@
 /* ============================== part.c ==============================
  *
- * Rappresenta il modulo per la gestione del partizionamento
- * dell'insieme di sottochiavi che dovranno essere computate dai
- * singoli processi.
+ * In questo modulo sono sviluppate le infrastrutture funzionali per
+ * l'esecuzione dell'attacco a forza bruta. In particolare la
+ * funzione per la gestione del partizionamento dell'insieme di
+ * sottochiavi, che dovranno essere computate dai singoli processi,
+ * è realizzata ricorsivamente e chiamata come sottofunzione della
+ * funzione 'key_gen'. L'obiettivo è quello di permette una modularità
+ * nella ricerca di password a dimensione variabile.
  *
  * ====================================================================
  */
@@ -18,8 +22,9 @@
 #include "verbose.h"
 
 // Dichiarazione varibili globali
-int count, min, max, *set, filter, my_rank;
 extern user_input *ui;
+
+int count, min, max, *set, filter, my_rank;
 th_parms *audit_t;
 
 
@@ -29,9 +34,10 @@ th_parms *audit_t;
  * -------------------------------------------
  */
 int test(char *pass) {
-	//if(!(count % 10000000))	//TODO: varibile sulla dimenzione dello spaziondi ricerca
-		//debug("KEYGEN", "Processo %d => '%s'\n", my_rank, pass);
-	count++;
+	//if(!(count % 5000))	//TODO: varibile sulla dimenzione dello spazio di ricerca
+	//debug("KEYGEN", "Processo %d => '%s'\n", my_rank, pass);
+
+	count++;				// Contatore del numero di iterazioni (utilizzato per lo auditing)
 
 	unsigned char new_hash[HASH_SIZE];		//TODO spostare la malloc all'interno della funzione hashMD5?
 	hashMD5(pass, new_hash);				//TODO aggiungere controllo di errore
@@ -77,7 +83,6 @@ int comb(comb_parms *parms, int pos) {
 
 	// Se count è zero indica che si è nella fase di inizializzazione
 	if (!count) {
-
 		// caloclo della combinazione iniziale per la computazione
 		for (i = (parms->init->starting_point)[pos];
 				i < cs_size && count != chunk; i++) {
@@ -85,22 +90,16 @@ int comb(comb_parms *parms, int pos) {
 			passwd[pos] = cs[i];
 			if (comb(parms, pos + 1))
 				return 1;
-
 		}
-
 	}
 
 	// altrimenti si prosegue a costruire la stringa da testare
 	else {
-
 		for (i = 0; i < cs_size && count != chunk; i++) {
-
 			passwd[pos] = cs[i];
 			if (comb(parms, pos + 1))
 				return 1;
-
 		}
-
 	}
 
 	return 0;
@@ -121,8 +120,6 @@ int *compute_starting_point(long init, int cs_size, int passlen) {
 
 		int p = STARTING_CHAR(init, cs_size, i);
 		starting_point[passlen - i - 1] = p;
-		//printf("DEBUG:Rank %d - char in pos %d:%d\n", my_rank, i, p);
-
 	}
 
 	return starting_point;
@@ -134,10 +131,10 @@ int *compute_starting_point(long init, int cs_size, int passlen) {
  * key_gen
  * -------------------------------------------
  */
-int key_gen(int rank, int num_procs, char **plain, th_parms *_audit) {		//TODO: package dei parametri MPI
+int key_gen(int rank, int num_procs, th_parms *_audit) {		//TODO: package dei parametri MPI
 
 	int *starting_point;				/// Identificativo della combinazione da cui avviare l'algoritmo
-	int ret;
+	int ret, passlen;
 	long chunk, disp, init;
 	allocation *allocs;					/// Struttura per la gestione della memoria allocata dal thread
 
@@ -145,20 +142,21 @@ int key_gen(int rank, int num_procs, char **plain, th_parms *_audit) {		//TODO: 
 	string_t *cs, *passwd;				/// Stringhe del charset selezionato e della password in chiaro
 	comb_settings *settings;			/// Settaggi per l'algoritmo
 
-	debug("KEYGEN", "Avvio programma di partizione...\n");
+	debug("KEYGEN", "Avvio partizionamento delle chiavi...\n");
 
+	/* Gestione del layout di memoria interno tramite la struttura proprietaria */
 	allocs = init_mem_layout();
 	allocate(allocs, &parms, sizeof(parms));
 	allocate(allocs, &cs, (2 * sizeof(string_t)));
 	passwd = cs + 1;
 	allocate(allocs, &settings, sizeof(comb_settings));
+	/* fine gestione layout memoria */
 
 	audit_t = _audit;
-
-	pthread_cleanup_push(work_cleanup, allocs);
-
 	count = 0;
 	ret = 0;
+
+	pthread_cleanup_push(work_cleanup, allocs);
 
 	cs->str = ui->cs;
 	cs->size = strlen(ui->cs);
@@ -167,13 +165,12 @@ int key_gen(int rank, int num_procs, char **plain, th_parms *_audit) {		//TODO: 
 	memset(passwd->str, '\0', (ui->passlen + 1) * sizeof(char)); // inizializza la stringa di lavoro
 
 	/*
-	 * Calcola il numero di disposizioni da calcolare
-	 * ed individua il numero progressivo della combinazione
-	 * di partenza per la decrittazione
+	 * Calcola il numero di disposizioni ed individua
+	 * il numero progressivo della combinazione di partenza
 	 */
 	my_rank = rank;
-	disp = DISPOSITIONS(cs->size, ui->passlen); // Numero di disposizioni da calcolare
-	chunk = DISP_PER_PROC(disp, num_procs); // Numero di disposizioni che ogni processo deve calcolare
+	disp = DISPOSITIONS(cs->size, ui->passlen);		// Numero di disposizioni da calcolare
+	chunk = DISP_PER_PROC(disp, num_procs);			// Numero di disposizioni che ogni processo deve calcolare
 
 	init = chunk * my_rank;
 
@@ -187,12 +184,26 @@ int key_gen(int rank, int num_procs, char **plain, th_parms *_audit) {		//TODO: 
 	parms->passwd = passwd;
 	parms->init = settings;
 
-	/* Combinazione trovata */
-	if (comb(parms, 0)) {
-		strcpy(*plain, parms->passwd->str);
-		ret = 1;
-		//printf("password trovata: '%s'\n", *plain);
-		//memcpy(*plain, parms->passwd->str,parms->passwd->size);
+	/* Avvia la funzione di brute force */
+	passlen = 1;	// TODO: testare il brute-force incrementale
+	while (passlen < parms->passwd->size){
+		ret = comb(parms, 0);
+		if (ret) {
+			/* Combinazione trovata; viene scritta nel buffer in chiaro */
+			strcpy(_audit->plain, parms->passwd->str);
+			break;
+		}
+
+		/* altrimenti la combinazione non è stata ancora trovata.
+		 * Tale situazione può verificarsi o perché il charset
+		 * di ricerca non è quello adeguato o perché la password
+		 * provata non è di lunghezza sufficiente, presupponendo di
+		 * avviare il brute force con la lunghezza di password minima
+		 * rispetto al range impostato. Si procede pertanto ad un
+		 * altro brute force con una lunghezza di chiave maggiore.
+		 */
+
+		passlen++;
 	}
 
 	pthread_cleanup_pop(work_cleanup);
@@ -208,39 +219,7 @@ int key_gen(int rank, int num_procs, char **plain, th_parms *_audit) {		//TODO: 
  */
 void work_cleanup(allocation *allocs) {
 	debug("WRK_CLN", "Processo %d -> Count = %d\n", my_rank, count);
+
+	/* Pulisce tutte le strutture dati allocte internamente */
 	destroy_all(allocs);
 }
-
-/*
- * Funzioni GET dei membri della struttura user_input
- */
-
-/**
- * Ritorna il charset su cui effettuare l'attacco
- *
- * @param ui: Puntatore a una struct user_input
- * @return: Puntatore al charset
- */
-
-/*char *getCs(user_input *ui){
-
- return ui->cs;
-
- }
-
- /*
- * Funzioni SET dei membri della struttura user_input
- */
-
-/**
- * Fissa il charset su cui effettuare l'attacco
- *
- * @param ui: Puntatore a una struct user_input
- * @return: Puntatore al charset
- */
-
-/*char *setCs(user_input *ui, char *){
-
- return ui->cs;
-
- }*/

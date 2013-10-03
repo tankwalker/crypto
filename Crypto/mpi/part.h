@@ -13,9 +13,9 @@
 #include "mem.h"
 #include "struct.h"
 
-#define DISPOSITIONS(cs_len, pass_len) (pow((cs_len),(pass_len)));
+#define DISPOSITIONS(cs_len, pass_len) (powl((cs_len),(pass_len)));
 #define DISP_PER_PROC(disp, num_procs) (((disp)/(num_procs))+1);
-#define STARTING_CHAR(init, cs_size, pos) (((long)((init)/(pow(cs_size, pos))))%(cs_size));
+#define STARTING_CHAR(init, cs_size, pos) (((long)((init)/(powl(cs_size, pos))))%(cs_size));
 
 #define BCAST_TAG 0
 
@@ -93,7 +93,7 @@ int *compute_starting_point(long init, int cs_size, int passlen);
  * @param reserved: Insieme degli indici riservati
  * @param k: Dimensione dell'insieme
  */
-int key_gen(int rank, int num_procs, char **plain, th_parms *audit);
+int key_gen(int rank, int num_procs, th_parms *audit);
 
 
 /**

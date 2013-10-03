@@ -10,7 +10,7 @@
 
 #define SUCCESS 0		// Successo
 #define EALLOC 1		// Errore allocazione memoria
-#define EIO 2			// Errore comunicazione I/O
-#define EPARM 3			// Errore nel passaggio dei parametri di avvio
+#define EPARM 2			// Errore nel passaggio dei parametri di avvio
+#define ESMEM 3			// Errore shared memory
 
 #endif /* ERRNO_H_ */

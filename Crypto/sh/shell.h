@@ -8,10 +8,6 @@
 #ifndef IO_H_
 #define IO_H_
 
-#include "part.h"
-#include "hash.h"
-#include "struct.h"
-
 #define cmd_ready(flag) ((flag) & 0x1h)
 #define passwd_ready(flag) ((flag) & 0x2h)
 
@@ -19,6 +15,7 @@
 #define CMD_EXEC 1
 #define CMD_ABRT 2
 #define PERMS 0666
+
 
 
 /**

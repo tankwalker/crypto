@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <sys/shm.h>
 #include <sys/ipc.h>
+#include <sys/types.h>
 #include <errno.h>
 #include <signal.h>
 #include <unistd.h>
@@ -28,6 +29,9 @@
 #include <sched.h>
 #include <syscall.h>
 #include <sys/syscall.h>
+#include <sys/stat.h>
+#include <semaphore.h>
+#include <string.h>
 
 
 #include "part.h"
@@ -37,14 +41,18 @@
 #include "sym.h"
 #include "cerrno.h"
 #include "struct.h"
+#include "dictionary.h"
 
 //threads running;
 user_input *ui;
+th_parms *ibus;
 
-int verbose, slow, auditing;
+int verbose, slow, auditing, cancelled, dictionary;
 int my_rank; /* rank of process */
 int num_procs; /* number of processes */
+int *wrk_errno, *aud_errno, *dak_errno;
 char last_try[256];
+pthread_t keygen_id, listener_id, audit_id, dictionary_id;
 MPI_Datatype MPI_User_input;
 
 int main(int argc, char *argv[]) {
@@ -52,41 +60,61 @@ int main(int argc, char *argv[]) {
 	int source; /* rank of sender */
 	int dest = 0; /* rank of receiver */
 	int passlen;
-	int tag = 0; /* tag for messages */
+	int ret = 0; /* tag for messages */
 	int shm_id;
 
+	int super_pid, work_pid, list_pid, audit_pid;
 	pthread_t superv_id; /* identificativo del thread di supervisione */
 	int *cerrno;			/* variabile di appoggio per il salvtaggio dello stato di errore */
 	MPI_Status status; /* return status for receive */
 	int cmd;		/* Comando ricevuto dal master */
 
-	debug("MPI", "Parametri avvio: %s, %s\n", argv[0], argv[1]);
+	int blockslen[UI_FIELDS];	/// Array per la costruzione del tipo di dato MPI personalizzato
+
+	int i = 0;
+	/*while(argv[i])
+		debug("MPI", "Parametri avvio: %s\n", argv[i++]);*/
+
+	ui = malloc(sizeof(user_input));
 
 	if(argc > 0){
-		shm_id = atoi(argv[1]);
-		ui = shmat(shm_id, NULL, SHM_RDONLY);
+		strToBin(argv[1], ui->hash, 2 * HASH_SIZE);
+		ui->passlen = atoi(argv[2]);
+		strcpy(ui->cs, argv[3]);
+		ui->verbose = atoi(argv[4]);
+		ui->auditing = atoi(argv[5]);
+		ui->dictionary = atoi(argv[6]);
 
-		debug("MPI", "Shared memory attach sul segmento '%d': (%s)\n", shm_id, strerror(errno));
+		/*debug("MPI", "hash='%s', passlen=%d, cs='%s', verbose=%d, auditing=%d, dictionary=%d\n",
+				ui->hash,
+				ui->passlen,
+				ui->cs,
+				ui->verbose,
+				ui->auditing,
+				ui->dictionary);*/
 	}
 
 	else
 		return -EPARM;
 
+	/* Arma il segnale di terminazione affinché venga catturato dal
+	 * gestore interno */
 	signal(SIGTERM, abort_mpi);
+	signal(SIGQUIT, term_worker);
 
-	debug("MPI", "UI-> ");
+	/*debug("MPI", "UI: hash-> ");
 	printHash(ui->hash);
-	debug("\nMPI", "passlen='%d', cs='%s, verbose='%d', auditing='%d'\n", ui->passlen, ui->cs, ui->verbose, ui->auditing);
-
-	int blockslen[UI_FIELDS];
+	debug("\nMPI", "passlen='%d'\ncs='%s'\nverbose='%d'\nauditing='%d'\n", ui->passlen, ui->cs, ui->verbose, ui->auditing);*/
 
 	auditing = ui->auditing;
+	dictionary = ui->dictionary;
 	verbose = ui->verbose;
+	//cancelled = 0;
 
 	/* start up MPI */
 	debug("MPI", "Inizializzazione Libreria MPI\n");
-	MPI_Init(NULL, NULL );
-	debug("MPI", "Inizializzazione terminata\n");
+	MPI_Init(NULL, NULL);
+	debug("MPI", "Inizializzazione Libreria MPI Terminata\n");
 
 	/* find out process rank */
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
@@ -94,7 +122,8 @@ int main(int argc, char *argv[]) {
 	/* find out number of processes */
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
-	debug("MPI", "Numero di processi attivi= %d\nMPI:: My rank=%d\n", num_procs, my_rank);
+	debug("MPI", "Numero di processi attivi= %d\n", num_procs);
+	debug("MPI", "My Rank= %d\n", my_rank);
 
 	// ** Definizione del tipo di dato personalizzato **
 	blockslen[0] = CHARSET_SIZE + 1;
@@ -112,14 +141,18 @@ int main(int argc, char *argv[]) {
 	MPI_Type_commit(&MPI_User_input);
 	// ** Fine tipo personalizzato **
 
-	debug("MPI", "Avvio thread supervisor\n");
+	debug("MPI", "Avvio thread supervisor da parte del processo %d\n", my_rank);
 
+	ret = supervisor();
+
+	/*
 	pthread_create(&superv_id, NULL, (void *)supervisor, NULL);
-	pthread_join(superv_id, (void **)&errno);
+	pthread_join(superv_id, (void **)&errno);*/
 
-	debug("MPI", "Supervisor terminato con codice %d\n", errno);
+	debug("MPI", "Supervisor del processo %d terminato con codice %d\n", my_rank, ret);
 
-	shmdt(ui);
+	/* Deallocazione delle sturtture dati allocate */
+	free(ui); // TODO: quit function?
 
 	/* shut down MPI */
 	MPI_Type_free(&MPI_User_input);
@@ -133,130 +166,192 @@ int main(int argc, char *argv[]) {
 /**
  * Main loop per il thread di supervisione sulla computazione corrente del relativo worker thread
  */
-void supervisor() {
-	int flag, i, cancel, *lst_errno, *wrk_errno, *aud_errno;
-	char *plain;
-	th_parms parms;
-	pthread_t worker_id, shell_id, listener_id, audit_id;
+int supervisor() {
+	int flag, cancel, ret, status = 1;
+	pid_t list_pid, audit_pid, worker_pid;
+	struct shmid_ds shmds;
 
-	/* Se si tratta del processo master viene avviata anche la shell
-	 * di interazione con l'utente, altrimenti si entra nel ciclo di polling
-	 * direttamente.
-	 */
+	/* Allocazione delle strutture dati locali */
+	aud_errno = malloc(TH_NUM * sizeof(pthread_t));
 
-	/*if(!my_rank)
-		pthread_create(shell_id, NULL, shell, NULL);	//TODO: Parametri?
+	/* Inizializzazione delle varibli locali */
+	wrk_errno = aud_errno + 1;
+	dak_errno = wrk_errno + 1;
+	*aud_errno = 0;
+	*dak_errno = 0;
+	*wrk_errno = -1;
 
+	/* Shared memory creation */
+	int shared;
+	key_t key = 35*(my_rank+1);
+	shared = shmget(key, sizeof(th_parms), IPC_CREAT|PERM);
+
+	/* Se non riesce a creare la shared memory esce con un codice di errore */
+	if(shared < 0){
+		shmctl(shared, IPC_RMID, &shmds);
+		panic("MPI", ESMEM, "Errore nella creazione della memoria condivisa con chiave %d. (%s)\n", key, strerror(errno));
+	}
+	ibus = shmat(shared, NULL, 0);
+	if(!ibus)
+		panic("MPI", ESMEM, "Errore nell'allocazione di memoria sul segmento condiviso %d. (%s)\n", shared, strerror(errno));
+	debug("MPI", "Struttura di bus allocata sul segmento condiviso %d da parte del processo %d\n", shared, my_rank);
+
+	bzero(ibus, sizeof(th_parms));
+
+	ibus->wterm = -1;
+	if(!dictionary)
+		sem_init(&ibus->mutex, 0, 1);
 	else
-		pthread_create(rshell_id, NULL, remote_shell, &cancel);
-*/
-	plain = malloc(MAX_PASSWD_LEN);
-	lst_errno = malloc(TH_NUM * sizeof(int));
-	wrk_errno = lst_errno + 1;
-	aud_errno = wrk_errno + 1;
-	parms.plain = plain;
+		sem_init(&ibus->mutex, 1, 1);
+	pthread_mutex_init(&ibus->lock, NULL);
+	pthread_cond_init(&ibus->waiting, NULL);
 
-	pthread_mutex_init(&parms.rlock, NULL);
-	pthread_mutex_init(&parms.wlock, NULL);
-	pthread_cond_init(&parms.waiting, NULL);
+	/* Worker */
+	worker_pid = fork();
+	if(worker_pid < 0)
+		debug("MPI", "Errore nella creazione del worker da parte del processo %d\n", my_rank);
+	if(!worker_pid){
+		ibus = shmat(shared, NULL, 0);
+		if(!ibus)
+			panic("WRK", ESMEM, "Errore nell'allocazione di memoria sul segmento condiviso %d. (%s) da parte del processo figlio del processo %d\n", shared, strerror(errno), my_rank);
+		debug("WRK", "Struttura di bus allocata sul segmento condiviso %d da parte del processo figlio del processo %d\n", shared, my_rank);
 
-	bzero(plain, MAX_PASSWD_LEN);
+		if(auditing)
+			pthread_create(&audit_id, NULL, (void *) audit, ibus);
+		if(!dictionary){
+			pthread_create(&keygen_id, NULL, (void *) worker, ibus);
+			ret = pthread_join(keygen_id, (void **) &wrk_errno);
+		}
+		else{
+			pthread_create(&dictionary_id, NULL, (void *) dictWorker, ibus);
+			ret = pthread_join(dictionary_id, (void **) &dak_errno);
+		}
 
-	pthread_create(&listener_id, NULL, (void *)listener, &parms);
+		if(ret != 0)
+			debug("WRK", "Oops, qualcosa nella cancellazione del thread (keygen/dictionary) è andata storta...\n");
+		else{
+			if(dictionary)
+				debug("WRK", "Dictionary del processo %d terminato con codice di errore %d\n", my_rank, *dak_errno);
+			 else
+				debug("WRK", "Keygen del processo %d terminato con codice di errore %d\n", my_rank, *wrk_errno);
+		}
 
-	if(auditing)
-		pthread_create(&audit_id, NULL, (void *)audit, &parms);
+		if(auditing){
+			if(!(pthread_cancel(audit_id))) {
+				ret = pthread_join(audit_id, NULL);
+				if(ret != 0)
+					debug("WRK", "Oops, qualcosa nella cancellazione del thread (audit) è andata storta...\n");
+				debug("WRK", "Audit del processo %d terminato con codice di errore %d\n", my_rank, *aud_errno);
 
-	pthread_create(&worker_id, NULL, (void *)worker, &parms);
+				debug("WRK", "Deallocazione strutture dati dedicate ai thread da parte del processo %d\n", my_rank);
+			}
+		}
+		exit(0);
+	}
 
-	debug("SV", "attesa listener...\n");
-
-	pthread_join(listener_id, (void **)&lst_errno);
-
-	debug("SV", "listener terminato!\n");
-
+	listener(ibus);
 	/* a questo punto si è verificata una delle seguenti condizioni di terminazione:
 	 * un worker thread remoto ha trovato la password o l'ha trovata quello locale
 	 * oppure è stata richiesta la terminazione forzata del programma dall'utente */
-	pthread_cancel(worker_id);
-	if(auditing){
-		pthread_cancel(audit_id);
-		pthread_join(audit_id, (void **)&aud_errno);
-	}
-
-	pthread_join(worker_id, (void **)&wrk_errno);
-	//debug("SV", "Worker thread del processo %d terminato con codice %d\n", my_rank, *wrk_errno);
-	//debug("SV", "Audit thread del processo %d terminato con codice %d\n", my_rank, *aud_errno);
+	//cancelled = 1;
+	kill(worker_pid, SIGQUIT);
+	waitpid(worker_pid, &status, 0);
+	debug("MPI", "Thread worker del processo %d terminato con codice errore %d\n", my_rank, status);
 
 	if(!my_rank){
-		if(strlen(plain) != 0)
-			printf("SV:: La password trovata è '%s'\n", plain);
+		if(strlen(ibus->plain) != 0){
+			pprintf("SV", "La password trovata è '%s'\n", ibus->plain);
+		}
 
 		else
-			printf("SV:: Password non trovata!!!\n");
+			pprintf("SV", "Password non trovata!!!\n");
 	}
+
+	/* Deallocazione della memoria locale */
+	debug("WRK", "Deallocazione strutture dati dedicate ai thread da parte del processo %d\n", my_rank);
+	pthread_mutex_destroy(&ibus->lock);
+	pthread_cond_destroy(&ibus->waiting);
+	debug("SV", "Deallocazione strutture dati da parte del processo %d\n", my_rank);
+	free(aud_errno);
+	sem_destroy(&ibus->mutex);
+	shmdt(ibus);
+	shmctl(shared, IPC_RMID, &shmds);
+
+	return 0;
 }
 
 int listener(th_parms *parms) {
 	MPI_Status status;
-	char buffer[MAX_PASSWD_LEN], *plain;
+	char buffer[MAX_PASSWD_LEN];
 	int flag, quorum;
 
 	quorum = num_procs;
-	plain = parms->plain;
 
-	/* Il master controlla l'attività degli altri worker */
-	if(!my_rank) {
+	/* Finché esistono worker attivi */
+	while(quorum){
 
-		/* Finché esistono worker attivi */
-		while(quorum){
+		/* Controllo messaggio terminazione worker */
+		MPI_Iprobe(MPI_ANY_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &flag, &status);
+		if(flag){
+			MPI_Recv(&flag, 1, MPI_INT, status.MPI_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &status);
+			quorum--;		// Decrementa il numero dei worker ancora in attività
 
-			//pthread_mutex_lock(&parms->rlock);
-			/* Controllo messaggio terminazione worker */
-			MPI_Iprobe(MPI_ANY_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &flag, &status);
+			debug("LST", "Processo %d ha terminato con codice %d\n", status.MPI_SOURCE, flag);
+			debug("LST", "Quorum residuo: %d\n", quorum);
+
 			if(flag){
-				MPI_Recv(&flag, 1, MPI_INT, status.MPI_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &status);
-				quorum--;		// Decrementa il numero dei worker ancora in attività
+				/* Un worker ha effettivamente trovato la password */
+				MPI_Recv(parms->plain, MAX_PASSWD_LEN, MPI_CHAR, status.MPI_SOURCE, TAG_PLAIN, MPI_COMM_WORLD, &status);
+				flag = status.MPI_SOURCE;
 
-				if(flag){
-					/* Un worker ha effettivamente trovato la password */
-					MPI_Recv(plain, MAX_PASSWD_LEN, MPI_CHAR, status.MPI_SOURCE, TAG_PLAIN, MPI_COMM_WORLD, &status);
-					flag = status.MPI_SOURCE;
-					break;
-				}
+				debug("LST", "Il processo %d ha trovato la password (%s)\n", status.MPI_SOURCE, parms->plain);
+
+				/*Broadcast dell'evento 'Password trovata'*/
+				//term();
 			}
-
-			/* Controllo auditing */
-			MPI_Iprobe(MPI_ANY_SOURCE, TAG_AUDIT, MPI_COMM_WORLD, &flag, &status);
-			if (flag) {
-				/* Ricezione ultimo tentativo da parte di un worker */
-				//debug("LST", "Messaggio remoto ricevuto\n");
-				MPI_Recv(buffer, MAX_PASSWD_LEN, MPI_CHAR, status.MPI_SOURCE, TAG_AUDIT, MPI_COMM_WORLD, &status);
-
-				debug("LST", "L'ultima password provata dal processo %d è '%s'\n", status.MPI_SOURCE, buffer);
-			}
-
-
-			/* Controllo richiesta terminazione asincrona */
-			MPI_Iprobe(MPI_ANY_SOURCE, TAG_ABORT, MPI_COMM_WORLD, &flag, &status);
-			if (flag) {
-				/* La shell ha effettivamente richiesto la terminazione forzata */
-				//debug("LST", "Messaggio remoto ricevuto\n");
-				MPI_Recv(&flag, 1, MPI_INT, status.MPI_SOURCE, TAG_ABORT, MPI_COMM_WORLD, &status);
-
-				debug("LST", "Processo %d: Shutdown forzato...\n", my_rank);
-				break;
-			}
-
-			//pthread_mutex_unlock(&parms->rlock);
-
-			/* Attesa prima del prossimo polling per limitare l'uso delle risorse */
-			usleep(LOOP_TIMEOUT);
+			if(!quorum) term();
 		}
-	}
-	MPI_Bcast(&flag, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-	return flag;
+		/* Controllo audit locale */
+		sem_wait(&parms->mutex);
+
+		flag = parms->wterm;
+
+		sem_post(&parms->mutex);
+
+		/* Controllo terminazione worker locale */
+		if(flag >= 0){
+			debug("LST", "Processo %d ha terminato con %d\n", my_rank, flag);
+				MPI_Send(&flag, 1, MPI_INT, 0, TAG_COMPLETION, MPI_COMM_WORLD);
+			if(my_rank) quorum--;
+
+			if(flag){
+				/*
+				 * Il worker thread non solo ha terminato la propria computazione
+				 * ma anche con successo, pertanto invia la password trovata al
+				 * master che si preoccuperà di fermare gli altri worker.
+				 */
+				debug("LST", "Processo %d: Invio password al master '%s'\n", my_rank, parms->plain);
+					MPI_Send(parms->plain, MAX_PASSWD_LEN, MPI_CHAR, 0, TAG_PLAIN, MPI_COMM_WORLD);
+
+			}
+			parms->wterm = -1;
+		}
+
+		/* Controllo richiesta terminazione asincrona */
+		MPI_Iprobe(MPI_ANY_SOURCE, TAG_ABORT, MPI_COMM_WORLD, &flag, &status);
+		if (flag) {
+			/* La shell ha effettivamente richiesto la terminazione forzata */
+			MPI_Recv(&flag, 1, MPI_INT, status.MPI_SOURCE, TAG_ABORT, MPI_COMM_WORLD, &status);
+
+			debug("LST", "Processo %d: Segnale di terminazione...\n", my_rank);
+			break;
+		}
+
+		/* Attesa prima del prossimo polling per limitare l'uso delle risorse */
+		usleep(LOOP_TIMEOUT);
+	}
+	return parms->wterm;
 }
 
 
@@ -266,76 +361,113 @@ int listener(th_parms *parms) {
  */
 int worker(th_parms *parms) {
 	int flag;
-	char *cracked = malloc(MAX_PASSWD_LEN);
-
-	debug("WRK", "Avvio worker thread da parte del processo %d...\n", my_rank);
 
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-	flag = key_gen(my_rank, num_procs, &cracked, parms);
+	debug("WRK", "Avvio worker thread da parte del processo %d...\n", my_rank);
 
-		/*
-		 * Se si arriva a questo punto il worker thread
-		 * ha terminato la propria esecuzione.
-		 * E' possibile, allora, terminare il thread listener
-		 */
-	//pthread_mutex_lock(&parms->rlock);
-	MPI_Send(&flag, 1, MPI_INT, 0, TAG_COMPLETION, MPI_COMM_WORLD);
-	//pthread_mutex_unlock(&parms->rlock);
+	flag = key_gen(my_rank, num_procs, parms);
 
-	if(flag){
-		// Invia la password al master
-		debug("WRK", "Processo %d: Invio password al master '%s'\n", my_rank, cracked);
-		MPI_Send(cracked, MAX_PASSWD_LEN, MPI_CHAR, 0, TAG_PLAIN, MPI_COMM_WORLD );
-	}
+	sem_wait(&parms->mutex);
 
+	parms->wterm = flag;
 
-	return flag;
+	sem_post(&parms->mutex);
+
+	*wrk_errno = flag;
+	pthread_exit(wrk_errno);
+}
+
+int dictWorker(th_parms *parms){
+	int flag;
+
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+	debug("WRK", "Avvio dictionary worker thread da parte del processo %d...\n", my_rank);
+
+	flag = dictAttack(my_rank, num_procs, parms);
+
+	sem_wait(&parms->mutex);
+
+	parms->wterm = flag;
+
+	sem_post(&parms->mutex);
+
+	*wrk_errno = flag;
+	pthread_exit(wrk_errno);
 }
 
 int audit(th_parms *parms){
-
-	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	char tempt[MAX_PASSWD_LEN];
-	int percentage;
+	int state;
+	long percentage;
 
-	percentage = computePercentage();
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &state);
+	pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
+
+	/* Calcola ogni quanto indicare l'avanzamento nella UI */
+	if(!dictionary)
+		percentage = computePercentage(0);
+	else{
+		percentage = computePercentage(1);
+		if(percentage == -1L){
+			*aud_errno = 1;
+			pthread_exit(aud_errno);
+		}
+	}
+
 	debug("AUDIT", "Thread auditing avviato sul processo %d\n", my_rank);
-	debug("AUDIT", "Verrà stampata una password ogni %d password\n", percentage);
+	debug("AUDIT", "Verrà stampata una password ogni %ld password\n", percentage);
 
 	while(1){
-
-		//pthread_mutex_lock(&parms->wlock);
-		pthread_mutex_lock(&parms->rlock);
-		pthread_cond_wait(&parms->waiting, &parms->rlock);
+		/* Vengono acquisiti il lock e la condizione di attesa (rilasciata dal worker) */
+		pthread_mutex_lock(&parms->lock);
+		pthread_cond_wait(&parms->waiting, &parms->lock);	// CS_PTHREAD INIT
 
 		if(parms->count % percentage){
-			pthread_mutex_unlock(&parms->rlock);
+			// Se la percentuale non è pari al valore computato come soglia, ignora
+			pthread_mutex_unlock(&parms->lock);
 			continue;
 		}
 
-		strcpy(tempt, parms->last_try);
+		//todo: formattazione dell'output di processo
+		debug("LST", "L'ultima password provata dal processo %d è '%s' (%ld)\n", my_rank, parms->last_try, parms->count);
 
-		pthread_mutex_unlock(&parms->rlock);
-		//pthread_mutex_unlock(&parms->wlock);
-
-		//debug("AUDIT", "last_try='%s', count='%d'\n", tempt, parms->count);
-
-		//pthread_mutex_lock(&parms->rlock);
-		MPI_Send(tempt, MAX_PASSWD_LEN, MPI_CHAR, 0, TAG_AUDIT, MPI_COMM_WORLD);
-		//pthread_mutex_unlock(&parms->rlock);
-
-		//debug("AUDIT", "Tentativo '%s' inviato al master\n", tempt);
+		pthread_mutex_unlock(&parms->lock); // CS_PTHREAD END
 	}
-
-	return 0;
+	*aud_errno = 0;
+	pthread_exit(aud_errno);
 }
 
-int computePercentage(){
-	int chunk, disp;
-	disp = DISPOSITIONS(strlen(ui->cs), ui->passlen); 	// Numero di disposizioni da calcolare
-	chunk = DISP_PER_PROC(disp, num_procs); 			// Numero di disposizioni che ogni processo deve calcolare
+/**
+ * Calcola ogni quanto inviare l'informazione dell'ultimo
+ * tentativo al master.
+ */
+long computePercentage(int mode){
+	long ret;
 
-	return (int)(chunk / PERCENTAGE);
+	if(!mode){
+		long chunk, disp;
+
+		disp = DISPOSITIONS(strlen(ui->cs), ui->passlen); 	// Numero di disposizioni da calcolare
+		chunk = DISP_PER_PROC(disp, num_procs); 			// Numero di disposizioni che ogni processo deve calcolare
+
+		ret = (long)(chunk / PERCENTAGE);
+	}
+	else{
+		int fd;
+		long int size;
+		struct stat file_st;
+
+		fd = open(DICT_PATH, O_RDONLY);
+		if(fd == -1){
+			debug("PRC","Errore nell'apertura del dizionario\n");
+			return -1L;
+		}
+
+		fstat(fd, &file_st);
+		size = file_st.st_size;
+		ret = ((size / num_procs)/PERCENTAGE)/PASS_CHAR_MEAN;
+	}
+	return ret;
 }
 
 /**
@@ -344,92 +476,31 @@ int computePercentage(){
 void abort_mpi(){
 	int i, flag;
 
-	debug("MPI", "Processo %d: Gestore abort...\n", my_rank);
+	debug("MPI", "Processo %d: Richiesta abort...\n", my_rank);
+	term();
+}
 
-	flag = 1;
-	for (i = 0; i < num_procs && !my_rank; i++) {
-		debug("MPI", "Processo %d: Invio comando abort al processo %d\n", my_rank, i);
+/**
+ * Consente di invare in broadcast ascincrona il segnale
+ * di terminazione a tutti i processi attivi.
+ */
+void term(){
+	int i, flag = 1;
+	for (i = 0; i < num_procs; i++) {
+		debug("MPI", "Processo %d: Invio comando terminazione al processo %d\n", my_rank, i);
 		MPI_Send(&flag, 1, MPI_INT, i, TAG_ABORT, MPI_COMM_WORLD );
 	}
 }
 
-//////////////////////////////////////////////////////////////////////////////////
+void term_worker(){
 
-void listener2(char **_plain){
-	MPI_Status status;
-	int flag, i, quorum;
-	//char *plain;
-	char buffer[256];
-	char *plain;
+	if(!dictionary && !(pthread_cancel(keygen_id))){
+		pthread_join(keygen_id, (void **) &wrk_errno);
+		debug("TRM", "Keygen del processo %d terminato con codice di errore %d\n", my_rank, *wrk_errno);
+	}
 
-	plain = *_plain;
-	quorum = num_procs;
-	/* Ciclo di polling */
-
-	while (1) {
-
-		if(!my_rank && !quorum)
-
-
-		/* Controllo messaggi in locale */
-		if (*plain != '\0' ) {
-			/* Il worker locale ha trovato la password:
-			 * Invia a tutti i processi la comunicazione di interrompere la computazione */
-
-			flag = 1;
-			for (i = 0; i < num_procs; i++) {
-				if(i == my_rank)
-					continue;
-				MPI_Send(&flag, 1, MPI_INT, i, TAG_COMPLETION, MPI_COMM_WORLD );
-			}
-
-
-			break;
-		}
-
-		/* Controllo messaggi remoti */
-		MPI_Iprobe(MPI_ANY_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &flag, &status);
-
-		if (flag) {
-			/* Un worker è terminato */
-			verbose("MPI", "Messaggio remoto ricevuto");
-			MPI_Recv(&flag, 1, MPI_INT, MPI_ANY_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &status);
-
-			/* Il supervisor arresta il worker locale *
-				verbose("Crypto", "Arresto worker thread");
-				pthread_cancel(worker_id);*/
-
-			if(flag){
-				/* La password è stata trovata da un worker */
-				printf("Password trovata dal processo %d\n", status.MPI_SOURCE);
-
-				break;
-			}
-
-			if(!flag){
-				printf("Il processo %d ha terminato infruttuosamente la sua ricerca\n", my_rank);
-
-				if(!my_rank)
-					quorum--;
-				else
-					break;
-
-			}
-		}
-
-		MPI_Iprobe(MPI_ANY_SOURCE, TAG_ABORT, MPI_COMM_WORLD, &flag, &status);
-
-		if (flag) {
-			/* La shell ha richiesto la terminazione forzata */
-			verbose("MPI", "Messaggio remoto ricevuto");
-			MPI_Recv(buffer, 1, MPI_INT, MPI_ANY_SOURCE, TAG_ABORT, MPI_COMM_WORLD, &status);
-
-			printf("Processo %d: Shutdown forzato...\n", my_rank);
-			break;
-		}
-
-		// Attesa prima del prossimo polling per limitare l'uso delle risorse
-		usleep(LOOP_TIMEOUT);
+	if(dictionary && !(pthread_cancel(dictionary_id))){
+			pthread_join(dictionary_id, (void **) &dak_errno);
+			debug("TRM", "Dictionary del processo %d terminato con codice di errore %d\n", my_rank, *dak_errno);
 	}
 }
-
