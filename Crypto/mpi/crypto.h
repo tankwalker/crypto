@@ -81,6 +81,6 @@ inline void term();
 /**
  * Gestisce la terminazione del thread locale per il processo worker
  */
-inline void halt_worker();
+inline void halt_worker_thread();
 
 #endif /* CRYPTO_H_ */
