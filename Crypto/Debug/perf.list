@@ -1,0 +1,3 @@
+
+Listofpre-definedevents(tobeusedin-e):
+instructions cache-references cache-misses branch-instructionsORbranches branch-misses cpu-clock task-clock page-faultsORfaults context-switchesORcs cpu-migrationsORmigrations major-faults L1-dcache-loads L1-dcache-load-misses L1-dcache-stores L1-dcache-store misses L1-dcache-prefetches L1-dcache-prefetch-misses L1-icache-loads L1-icache-load-misses L1-icache-prefetches L1-icache-prefetch-misses
