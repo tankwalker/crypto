@@ -334,6 +334,7 @@ int listener(th_parms *parms) {
 		usleep(LOOP_TIMEOUT);
 	}
 
+	debug("LST", "Processo %d: Break listening loop\n", my_rank);
 	return parms->wterm;
 }
 
