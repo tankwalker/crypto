@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 
 	/* Arma il segnale di terminazione affinché venga catturato dal
 	 * gestore interno */
-	signal(SIGTERM, abort_mpi);
+	//(SIGTERM, abort_mpi);
 
 	auditing = ui->auditing;
 	verbose = ui->verbose;
@@ -189,9 +189,6 @@ int supervisor() {
 
 	/* Processo worker del processo MPI padre */
 	if(!worker_pid){
-		/* Avvia un emulatore di terminale */
-		execlp("xterm", "xterm", NULL);
-
 		/* Arma il segnale di terminazinoe anticipata */
 		signal(SIGQUIT, halt_worker_thread);
 
@@ -205,18 +202,21 @@ int supervisor() {
 			pthread_create(&audit_tid, NULL, (void *) audit, ibus);
 
 		pthread_create(&worker_tid, NULL, (void *) worker, ibus);
-
 		ret = pthread_join(worker_tid, (void **) &wrk_errno);
 		if(ret != 0)
 			debug("WRK", "Oops, qualcosa è andato storto nel join con il thread (worker)...\n");
-		debug("WRK", "Worker thread del processo %d terminato con codice di errore %d\n", my_rank, *wrk_errno);
+
+		if(wrk_errno == PTHREAD_CANCELED)
+			debug("WRK", "Worker thread del processo %d è stato cancellato\n", my_rank);
+		else
+			debug("WRK", "Worker thread del processo %d terminato con codice di errore %d (%s)\n", my_rank, *wrk_errno, strerror(*wrk_errno));
 
 		if(auditing){
 			ret = pthread_cancel(audit_tid);
 			if(ret != 0)
 				debug("WRK", "Oops, qualcosa è andato storto nella cancellazione del thread (auditing)...\n");
 
-			debug("WRK", "Audit thread del processo %d terminato con codice di errore %d\n", my_rank, *aud_errno);
+			debug("WRK", "Audit thread del processo %d terminato con codice di errore %d (%s)\n", my_rank, *aud_errno, strerror(*aud_errno));
 			debug("WRK", "Deallocazione strutture dati dedicate ai thread da parte del processo %d\n", my_rank);
 		}
 
@@ -243,7 +243,7 @@ int supervisor() {
 	 */
 	kill(worker_pid, SIGQUIT);
 	waitpid(worker_pid, &status, 0);
-	debug("SV", "Thread worker del processo %d terminato con codice errore %d\n", my_rank, status);
+	debug("SV", "Thread worker del processo %d terminato con codice errore %d (%s)\n", my_rank, status, strerror(status));
 
 	/* nel caso questo sia il processo master per la libreria MPI, allora
 	 * è necessario procedere anche alla lettura del buffer che contiene
@@ -323,7 +323,7 @@ int listener(th_parms *parms) {
 		if(flag >= 0){
 			debug("LST", "Il processo %d ha terminato con %d\n", my_rank, flag);
 			MPI_Send(&flag, 1, MPI_INT, 0, TAG_COMPLETION, MPI_COMM_WORLD);
-			if(my_rank) quorum--;
+			if(my_rank) quorum = 0;
 
 			if(flag){
 				/*
@@ -475,6 +475,7 @@ long compute_percentage(int mode){
 inline void abort_mpi(){
 	debug("MPI", "Processo %d: Richiesta abort...\n", my_rank);
 	term();
+
 }
 
 /**
@@ -488,7 +489,7 @@ inline void term(){
 	if(my_rank)
 		return;
 
-	for (i = 1; i < num_procs; i++) {
+	for (i = 0; i < num_procs; i++) {
 		debug("MPI", "Processo %d: Invio comando terminazione al processo %d\n", my_rank, i);
 		MPI_Send(&flag, 1, MPI_INT, i, TAG_ABORT, MPI_COMM_WORLD);
 		debug("MPI", "Processo %d: Comando terminazione al processo %d inviato\n", my_rank, i);
@@ -496,5 +497,6 @@ inline void term(){
 }
 
 inline void halt_worker_thread(){
-	pthread_cancel(worker_tid);
+	int ret;
+	ret = pthread_cancel(worker_tid);
 }
