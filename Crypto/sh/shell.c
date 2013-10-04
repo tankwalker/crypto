@@ -186,10 +186,6 @@ void shell() {
 
 		// -------------- RUN -----------------
 		else if (!strcmp(token, "run")) {
-			token = strtok(NULL, " -p");
-			if(token != NULL)
-				printf("Profiler attivo\n\n");
-
 			pprintf("SHELL", "Avvio procedura decrittazione con parametri:\n");
 			printf("\tcharset = '%s'\n", ui->cs);
 			printf("\tpasswd: %s", ui->hash);
@@ -197,7 +193,7 @@ void shell() {
 			printf("\n\tpasslen = %d\n", ui->passlen);
 			printf("\tNumero processi MPI: '%s'\n", num_procs);
 			printf("\tAuditing attivo[T/F]: '%d'\n", ui->auditing);
-			printf("\tAttacco a dizionario abilitato[T/F]: '%d'\n", ui->dictionary);
+			printf("\tAttacco a dizionario abilitato[T/F]: '%d'\n", ui->attack);
 			printf("\tConferma? (y, n) ");
 			fflush(stdout);
 
@@ -213,30 +209,19 @@ void shell() {
 				sprintf(spasslen, "%d", ui->passlen);
 				sprintf(sverbose, "%d", ui->verbose);
 				sprintf(sauditing, "%d", ui->auditing);
-				sprintf(sdictionary, "%d", ui->dictionary);
+				sprintf(sdictionary, "%d", ui->attack);
 
-				void *args[] = {"perf", "stat", "-e", "task-clock,cpu-clock,context-switches,"
-						"cpu-migrations,page-faults,alignment-faults,cycles,"
-						"stalled-cycles-frontend,stalled-cycles-backend,"
-						"instructions,branches,branch-misses,cache-references,cache-misses,"
-						"L1-dcache-loads,L1-dcache-stores,L1-icache-loads,L1-icache-load-misses,"
-						"L1-icache-prefetch,L1-icache-prefetch-misses",
-						"mpirun", "-np", num_procs, "--hostfile", "runners.host",
+				void *args[] = {"mpirun", "-np", num_procs, "--hostfile", "runners.host",
 								"launchMPI", ui->hash, spasslen, ui->cs, sverbose,
 								sauditing, sdictionary, NULL};
 
-				debug("SHELL", "exec %s %s %s %s %s %s %s %s %s %s %s\n",
+				/*debug("SHELL", "exec %s %s %s %s %s %s %s %s %s %s %s\n",
 						args[0], args[1], args[2], args[3], args[4], args[5],
-						args[7], args[8], args[9], args[10], args[11]);
+						args[7], args[8], args[9], args[10], args[11]);*/
 
 				mpi_process = fork();
 				if (!mpi_process){
-					ret = execvp(*(args+4), args+4);
-					if(token != NULL){
-						printf("perf: redirezione stdout\n");
-						stdout = fopen("./perf.stat", "rw");
-						ret = execvp(*args, args);
-					}
+					ret = execvp(*args, args);
 					debug("SHELL", "execvp=%d\n", ret);
 
 					if(ret < 0){
@@ -300,8 +285,8 @@ void shell() {
 				printf("usage dictionary {0,1}\n");
 				continue;
 			}
-			ui->dictionary = (int) strtol(token, NULL, BASE);
-			if(ui->dictionary) printf("Attacco a dizionario abilitato\n");
+			ui->attack = (int) strtol(token, NULL, BASE);
+			if(ui->attack) printf("Attacco a dizionario abilitato\n");
 			else printf("Attacco a dizionario disabilitato\n");
 		}
 

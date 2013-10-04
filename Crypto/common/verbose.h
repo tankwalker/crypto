@@ -27,7 +27,7 @@
 
 #define panic(head, err, ...) do {		\
 	debug(head, __VA_ARGS__);				\
-	exit(err);						\
+	return err;						\
 } while(0)
 
 #else

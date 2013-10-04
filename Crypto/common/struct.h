@@ -69,11 +69,10 @@ typedef struct user_input {
 	unsigned char hash[2*HASH_SIZE+1];
 	int passlen;
 	int verbose, auditing;
-	int dictionary;
+	int attack;
 } user_input;
 
 typedef struct th_parms {
-
 	char last_try[MAX_PASSWD_LEN];
 	char plain[MAX_PASSWD_LEN];
 	long count;
@@ -81,7 +80,6 @@ typedef struct th_parms {
 	sem_t mutex;
 	pthread_mutex_t lock;
 	pthread_cond_t waiting;
-
 } th_parms;
 
 #endif /* STRUCT_H_ */

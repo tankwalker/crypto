@@ -222,4 +222,6 @@ void work_cleanup(allocation *allocs) {
 
 	/* Pulisce tutte le strutture dati allocte internamente */
 	destroy_all(allocs);
+
+	debug("WRK_CLN", "Exiting Work_cleanup...\n");
 }
