@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 
 	/* Arma il segnale di terminazione affinché venga catturato dal
 	 * gestore interno */
-	//(SIGTERM, abort_mpi);
+	signal(SIGTERM, abort_mpi);
 
 	auditing = ui->auditing;
 	verbose = ui->verbose;
@@ -323,7 +323,6 @@ int listener(th_parms *parms) {
 		if(flag >= 0){
 			debug("LST", "Il processo %d ha terminato con %d\n", my_rank, flag);
 			MPI_Send(&flag, 1, MPI_INT, 0, TAG_COMPLETION, MPI_COMM_WORLD);
-			if(my_rank) quorum = 0;
 
 			if(flag){
 				/*
@@ -335,7 +334,9 @@ int listener(th_parms *parms) {
 				MPI_Send(parms->plain, MAX_PASSWD_LEN, MPI_CHAR, 0, TAG_PLAIN, MPI_COMM_WORLD);
 			}
 
-			parms->wterm = -1;
+			if(my_rank)
+				break;
+			//parms->wterm = -1;
 		}
 
 		/* Controllo richiesta terminazione asincrona */
