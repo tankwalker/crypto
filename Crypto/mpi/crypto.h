@@ -18,9 +18,9 @@
 #define TAG_ABORT		2		/// Messaggio di abort
 #define TAG_PLAIN		3		/// Messaggio di comunicazione della password in chiaro
 #define TAG_AUDIT		4		/// Messaggio di comunicazione dell'ultima password tentata
-#define ACK				5
 
-#define PARM_HASH		1		/// ID delle posizioni di campo nella struttura UI
+/* Posizioni numeriche dei parametri passati al processo MPI */
+#define PARM_HASH		1
 #define PARM_PASSLEN	2
 #define PARM_CS			3
 #define PARM_VERBOSE	4
@@ -33,16 +33,9 @@
 #define TH_NUM		2			/// Numero di thread utilizzati dal supervisor
 #define PRIME		7			/// Numero primo per la scelta della chiave del segmento condiviso
 #define PASS_CHAR_MEAN 8		/// Numero medio di caratteri delle password contenute nel dizionario
-
 #define BRUTE_FORCE	0			/// Modalità di attacco a forza bruta
 #define DICT_ATTACK	1			/// Modalità di attacco a dizionario
 
-
-/**
- * Rappresenta il gestore delle statistiche sull'attacco per la User Interface.
- * Viene realizzato come thread del processo worker.
- */
-int audit(th_parms *parms);
 
 /**
  * Sezione di ascolto dei messaggi che viaggiano sulla libreria MPI.
@@ -60,7 +53,13 @@ int supervisor();
 /**
  * Funzione che esegue il lavoro di decrittazione, sia esso in brute-force o come attacco a dizionario.
  */
-int worker(th_parms *parms);
+void worker(th_parms *parms);
+
+/**
+ * Rappresenta il gestore delle statistiche sull'attacco per la User Interface.
+ * Viene realizzato come thread del processo worker.
+ */
+void audit(th_parms *parms);
 
 /**
  * Funzione ausliaria necessaria per calcolare ogni quanto aggiornare le statistiche sull'attacco

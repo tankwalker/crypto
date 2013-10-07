@@ -7,10 +7,11 @@
 
 #ifndef DICTIONARY_H_
 #define DICTIONARY_H_
+
 #define PERM 0755
 #define MAX_RSIZE 256
 #define RED_ZONE 256
-#define DICT_PATH "/home/mpiuser/git/crypto/Crypto/mpi/resources/wordlist.txt"
+#define DICT_PATH "../mpi/resources/wordlist.txt"
 
 #include "struct.h"
 

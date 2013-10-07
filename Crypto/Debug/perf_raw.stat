@@ -1,0 +1,28 @@
+# started on Mon Oct  7 12:30:35 2013
+
+
+ Performance counter stats for './launchMPI 0x4e5bbaeafc82ab7aa1385bea8ef5d30a 5 abcdefghijklmnopqrstuvwxyz 0 0 0' (5 runs):
+
+       6528,370358 task-clock                #    1,984 CPUs utilized            ( +-  2,52% )
+       6528,404620 cpu-clock                                                     ( +-  2,52% )
+               769 context-switches          #    0,118 K/sec                    ( +-  0,65% )
+                11 cpu-migrations            #    0,002 K/sec                    ( +- 15,48% )
+              3659 page-faults               #    0,560 K/sec                    ( +-  0,01% )
+                 0 alignment-faults          #    0,000 K/sec                  
+       16212214809 cycles                    #    2,483 GHz                      ( +-  2,47% ) [20,05%]
+   <not supported> stalled-cycles-frontend 
+   <not supported> stalled-cycles-backend  
+       19141482503 instructions              #    1,18  insns per cycle          ( +-  0,38% ) [30,09%]
+        3840242741 branches                  #  588,239 M/sec                    ( +-  0,36% ) [30,14%]
+          42995864 branch-misses             #    1,12% of all branches          ( +-  0,61% ) [30,14%]
+          79459302 cache-references          #   12,171 M/sec                    ( +-  3,87% ) [20,10%]
+           6688887 cache-misses              #    8,418 % of all cache refs      ( +- 24,23% ) [20,13%]
+        5183113637 L1-dcache-loads           #  793,937 M/sec                    ( +-  0,64% ) [20,07%]
+        3511325489 L1-dcache-stores          #  537,856 M/sec                    ( +-  0,42% ) [20,02%]
+       15417664737 L1-icache-loads           # 2361,641 M/sec                    ( +-  2,73% ) [20,02%]
+          32431887 L1-icache-load-misses     #    0,21% of all L1-icache hits    ( +-  4,44% ) [20,01%]
+   <not supported> L1-icache-prefetch      
+   <not supported> L1-icache-prefetch-misses
+
+       3,290673674 seconds time elapsed                                          ( +-  2,55% )
+

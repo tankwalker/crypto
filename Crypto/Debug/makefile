@@ -8,7 +8,7 @@
 PERF_STAT := task-clock,cpu-clock,context-switches,cpu-migrations,page-faults,alignment-faults,cycles,stalled-cycles-frontend,stalled-cycles-backend,instructions,branches,branch-misses,cache-references,cache-misses,L1-dcache-loads,L1-dcache-stores,L1-icache-loads,L1-icache-load-misses,L1-icache-prefetch,L1-icache-prefetch-misses
 LOG_LOCAL := perf.stat
 LOG_WIDE := perf_wide.stat
-LOG_RAW := perf_onhe.stat
+LOG_RAW := perf_raw.stat
 TEST_CS := abcdefghijklmnopqrstuvwxyz
 
 # Hash values for passwords to test
@@ -20,7 +20,7 @@ proc := 1
 repeat := 5
 
 # Compiling macros
-OFLAG := -O1
+CFLAGS := -O2 -pg
 RM := rm -rf
 
 # All of the sources participating in the build are defined here
@@ -48,7 +48,7 @@ all: Crypto Shell
 Crypto: $(OBJS) $(CRYPTO_OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
-	mpicc  $(OFLAG) -o "launchMPI" $(CRYPTO_OBJS) $(OBJS) $(USER_OBJS) $(LIBS)
+	mpicc  --show $(CFLAGS) -o "launchMPI" $(CRYPTO_OBJS) $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 	
@@ -56,7 +56,7 @@ Crypto: $(OBJS) $(CRYPTO_OBJS) $(USER_OBJS)
 Shell: $(OBJS) $(SHELL_OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
-	gcc  $(OFLAG) -o "Crypto" $(SHELL_OBJS) $(OBJS) $(USER_OBJS) $(LIBS)
+	gcc $(CFLAGS) -o "Crypto" $(SHELL_OBJS) $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -74,7 +74,7 @@ test:
 profile_raw:
 	@echo 'Verrà eseguito il profiling sulla media delle $(repeat) esecuzioni di attacco brute force locale senza uso della libreria MPI'
 	@echo 'Numero di processi = 1, passwd = intel'
-	@(perf stat -o $(LOG_RAW) -e $(PERF_STAT) ./launchMPI $(HASH_INTEL) 5 $(TEST_CS) 0 0 0)
+	@(perf stat -o $(LOG_RAW) -r$(repeat) -e $(PERF_STAT) ./launchMPI $(HASH_INTEL) 5 $(TEST_CS) 0 0 0)
 	@echo 'Profiling terminato'
 	@echo 'Log delle statistiche sul file $(LOG_RAW)'
 	@echo ' '

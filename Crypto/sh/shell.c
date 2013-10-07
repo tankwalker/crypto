@@ -36,10 +36,6 @@
 
 extern char *charsets[];
 extern char *help_msg;
-// extern threads running;
-//extern MPI_Datatype MPI_User_input;
-//extern int my_rank;
-//extern int num_procs;
 
 int shm_id;
 pid_t mpi_process = 0;
@@ -49,7 +45,7 @@ user_input *ui;
  * Gestore di segnale di terminazione del processo mpirun
  */
 void sh_abort_mpi(){
-	int ret = kill(mpi_process, SIGTERM);
+	int ret = kill(mpi_process, SIGUSR1);
 	printf("Killing process (%d)= %d\n", mpi_process, ret);
 }
 
@@ -66,21 +62,19 @@ void sig_halt(){
 		sh_abort_mpi();
 
 	quit();
-	printf("Quitting...\n");
+	printf("Exit...\n");
 	exit(0);
 
 }
 
 void shell() {
 
-	char shm_str[32];
 	char num_procs[32];
 	char spasslen[STR_INT_SIZE], sverbose[STR_INT_SIZE], sauditing[STR_INT_SIZE], sdictionary[STR_INT_SIZE];
 	int ret, num;
 	unsigned char buffer[256], *token;
 	unsigned char hash[HASH_SIZE];
 	pthread_t wait_id;
-	int mpi_proc_status;
 
 
 	printf("==============================\n");
@@ -90,7 +84,6 @@ void shell() {
 	/* Azzeramento aree di memoria */
 	bzero(ui, sizeof(user_input));
 	strcpy(num_procs, "1");
-
 
 	/* Arma i segnali di terminazione forzata */
 	signal(SIGHUP, sig_halt);
@@ -123,6 +116,11 @@ void shell() {
 		else if (!strcmp(token, "set")) {
 			token = strtok(NULL, " \n");
 
+			if(token == NULL){
+				printf("usage: set [passwd | passlen | cs | proc] {value}\n");
+				continue;
+			}
+
 			if (!strcmp(token, "passlen")) {
 				token = strtok(NULL, " \n");
 
@@ -141,11 +139,10 @@ void shell() {
 				token = strtok(NULL, " \n");
 
 				if(token == NULL){
-					printf("usage: set passwd [MD5-hash]\n");
+					printf("usage: set passwd {MD5-hash}\n");
 					continue;
 				}
 
-				//ret = strToBin(token, ui->hash, 2 * HASH_SIZE);
 				if(strchr(token, 'x') != NULL)
 					token = strchr(token, 'x')+1;
 
@@ -155,15 +152,18 @@ void shell() {
 				}
 				strncpy(ui->hash, token, 2*HASH_SIZE+1);
 
-				printf("Impostata la password target = ");
+				printf("Impostata l'hash della password target = ");
 				printf("%s\n", ui->hash);
-				//printHash(ui->hash);
-				//printf("\n");
 
 			}
 
 			if (!strcmp(token, "cs")) {
 				token = strtok(NULL, " \n");
+
+				if(token == NULL){
+					printf("usage: set cs [0, 6]\n");
+					continue;
+				}
 
 				num = (int) strtol(token, NULL, BASE);
 				if (num < 0 || num > CS_SIZE) {
@@ -178,7 +178,17 @@ void shell() {
 			// -------------- NP -----------------
 			if(!strcmp(token, "proc")) {
 				token = strtok(NULL, " \n");
+				if(token == NULL){
+					printf("usage: set proc {N > 0}\n");
+					continue;
+				}
+
 				num = (int) strtol(token, NULL, BASE);
+				if (num <= 0) {
+					printf("Valore non valido [1, N]\n");
+					continue;
+				}
+
 				sprintf(num_procs, "%d", num);
 				printf("Impostato numero processi MPI: '%s'\n", num_procs);
 			}
@@ -189,11 +199,11 @@ void shell() {
 			pprintf("SHELL", "Avvio procedura decrittazione con parametri:\n");
 			printf("\tcharset = '%s'\n", ui->cs);
 			printf("\tpasswd: %s", ui->hash);
-			//printHash(ui->hash);
 			printf("\n\tpasslen = %d\n", ui->passlen);
-			printf("\tNumero processi MPI: '%s'\n", num_procs);
-			printf("\tAuditing attivo[T/F]: '%d'\n", ui->auditing);
-			printf("\tAttacco a dizionario abilitato[T/F]: '%d'\n", ui->attack);
+			printf("\tNumero processi MPI: %s\n", num_procs);
+			printf("\tAuditing %s\n", ui->auditing ? "abilitato" : "disabilitato");
+			//	printf("\tModalità debug %s\n", ui->verbose ? "abilitata" : "disabilitata");
+			printf("\tAttacco %s\n", ui->attack ? "a dizionario" : "brute force");
 			printf("\tConferma? (y, n) ");
 			fflush(stdout);
 
@@ -202,8 +212,13 @@ void shell() {
 			}
 
 			if (buffer[0] == 'y') {
+				if(ui->cs == 0 || ui->passlen <= 0 || ui->hash == 0){
+					printf("Parametri non corretti!\nEsecuzione annullata\n");
+					continue;
+				}
+
 				printf("\n\n");
-				debug("SHELL", "Avvio MPI...\n");
+				debug("SHELL", "Avvio dell'infrastruttura MPI...\n");
 				ret = 0;
 
 				sprintf(spasslen, "%d", ui->passlen);
@@ -212,16 +227,12 @@ void shell() {
 				sprintf(sdictionary, "%d", ui->attack);
 
 				void *args[] = {"mpirun", "-np", num_procs, "--hostfile", "runners.host",
-								"launchMPI", ui->hash, spasslen, ui->cs, sverbose,
-								sauditing, sdictionary, NULL};
-
-				/*debug("SHELL", "exec %s %s %s %s %s %s %s %s %s %s %s\n",
-						args[0], args[1], args[2], args[3], args[4], args[5],
-						args[7], args[8], args[9], args[10], args[11]);*/
+						"launchMPI", ui->hash, spasslen, ui->cs, sverbose,
+						sauditing, sdictionary, NULL};
 
 				mpi_process = fork();
 				if (!mpi_process){
-					ret = execvp(*args, args);
+					ret = execvp(*(args), args);
 					debug("SHELL", "execvp=%d\n", ret);
 
 					if(ret < 0){
@@ -235,7 +246,7 @@ void shell() {
 			}
 
 			else {
-				printf("annullato\n");
+				printf("Esecuzione annullata\n");
 				continue;
 			}
 		}
@@ -259,35 +270,39 @@ void shell() {
 		else if (!strcmp(buffer, "verbose")) {
 			token = strtok(NULL, " \n");
 			if(token == NULL){
-				printf("usage verbose {0,1}\n");
+				printf("usage: verbose {0,1}\n");
 				continue;
 			}
+
 			ui->verbose = (int) strtol(token, NULL, BASE);
+			if(ui->auditing) printf("Verbose mode attiva\n");
+			else printf("Verbose mode disabilitata\n");
 		}
 
 		// -------------- AUDITING -----------------
 		else if (!strcmp(buffer, "auditing")) {
 			token = strtok(NULL, " \n");
 			if(token == NULL){
-				printf("usage auditing {0,1}\n");
+				printf("usage: auditing {0,1}\n");
 				continue;
 			}
 			ui->auditing = (int) strtol(token, NULL, BASE);
-			if(ui->auditing) printf("Impostato processo di auditing\n");
-			else printf("Annulato processo di auditing\n");
+			if(ui->auditing) printf("Abilitato il processo di auditing\n");
+			else printf("Disabilitato il processo di auditing\n");
 		}
 
-		// -------------- DICTIONARY ATTACK -----------------
+		// -------------- ATTACK TYPE -----------------
 		//TODO Scelta dizionario da usare
 		else if (!strcmp(buffer, "dictionary")) {
 			token = strtok(NULL, " \n");
 			if(token == NULL){
-				printf("usage dictionary {0,1}\n");
+				printf("usage: dictionary {0,1}\n");
 				continue;
 			}
+
 			ui->attack = (int) strtol(token, NULL, BASE);
-			if(ui->attack) printf("Attacco a dizionario abilitato\n");
-			else printf("Attacco a dizionario disabilitato\n");
+			if(ui->attack) printf("Impostato attacco a dizionario\n");
+			else printf("Impostato attacco brute force\n");
 		}
 
 		// -------------- ABORT -----------------

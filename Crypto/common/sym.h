@@ -18,5 +18,4 @@
 #define PROMPT ">> "
 
 
-
 #endif /* SYMS_H_ */

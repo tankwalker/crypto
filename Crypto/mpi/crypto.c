@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 
 	/* Arma il segnale di terminazione affinché venga catturato dal
 	 * gestore interno */
-	signal(SIGTERM, abort_mpi);
+	signal(SIGUSR1, abort_mpi);
 
 	auditing = ui->auditing;
 	verbose = ui->verbose;
@@ -251,7 +251,7 @@ int supervisor() {
 	 */
 	if(!my_rank){
 		if(strlen(ibus->plain) != 0){
-			pprintf("SV", "La password trovata è '%s'\n", ibus->plain);
+			pprintf("SV", "La password è '%s'\n", ibus->plain);
 		}
 		else
 			pprintf("SV", "Password non trovata!!!\n");
@@ -317,7 +317,7 @@ int listener(th_parms *parms) {
 
 		/* Controllo terminazione worker locale */
 		sem_wait(&parms->mutex);
-		flag = parms->wterm;
+		flag = parms->wterm;		//TODO: Il profiling mostra un utilizzo eccessivo di questa istruzione!
 		sem_post(&parms->mutex);
 
 		if(flag >= 0){
@@ -364,7 +364,7 @@ int listener(th_parms *parms) {
  * worker
  * -------------------------------------------
  */
-int worker(th_parms *parms) {
+void worker(th_parms *parms) {
 	int flag;
 
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
@@ -394,7 +394,7 @@ int worker(th_parms *parms) {
  * audit
  * -------------------------------------------
  */
-int audit(th_parms *parms){
+void audit(th_parms *parms){
 	int state;
 	char tempt[MAX_PASSWD_LEN];
 	int percentage;
@@ -404,9 +404,9 @@ int audit(th_parms *parms){
 
 	/* Calcola ogni quanto indicare l'avanzamento nella UI */
 	if(attack == DICT_ATTACK)
-		percentage = compute_percentage(0);
+		percentage = compute_percentage(attack);
 	else {
-		percentage = compute_percentage(1);
+		percentage = compute_percentage(attack);
 		if(percentage == -1L){
 			*aud_errno = 1;
 			pthread_exit(aud_errno);
@@ -476,7 +476,6 @@ long compute_percentage(int mode){
 inline void abort_mpi(){
 	debug("MPI", "Processo %d: Richiesta abort...\n", my_rank);
 	term();
-
 }
 
 /**

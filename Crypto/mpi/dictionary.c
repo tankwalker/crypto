@@ -44,8 +44,6 @@ int initDict(int my_rank, int num_procs, th_parms *parm){
 	if(!dict)
 		return 1;
 
-	//debug("DAK","Dictionary: %s", dict);
-
 	return 0;
 }
 
