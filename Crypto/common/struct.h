@@ -20,6 +20,7 @@
 
 #define CHARSET_SIZE 64
 #define STR_PASSLEN 3
+#define HOSTNAME_SIZE 11
 
 #define UI_FIELDS 3
 #define PADDING 2
@@ -77,9 +78,16 @@ typedef struct th_parms {
 	char plain[MAX_PASSWD_LEN];
 	long count;
 	int wterm;
+	int cid;
 	sem_t mutex;
 	pthread_mutex_t lock;
 	pthread_cond_t waiting;
 } th_parms;
+
+typedef struct peer_ds {
+	pid_t pid;
+	char host[HOSTNAME_SIZE];
+	int rank;
+} peer_ds;
 
 #endif /* STRUCT_H_ */

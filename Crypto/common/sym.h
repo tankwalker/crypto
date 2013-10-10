@@ -17,5 +17,14 @@
 
 #define PROMPT ">> "
 
+#define CMD_SET_HASH	"hash"
+#define CMD_SET_SIZE	"passlen"
+#define CMD_SET_CS		"cs"
+#define CMD_SET_PROC	"proc"
+#define CMD_AUD		"auditing"
+#define CMD_VERBOSE	"verbose"
+#define CMD_DICT	"dictionary"
+#define CMD_ABORT	"abort"
+#define CMD_TEST_PASSWD		"test"
 
 #endif /* SYMS_H_ */

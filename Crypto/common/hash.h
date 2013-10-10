@@ -42,8 +42,9 @@ int hexToBin(unsigned char c);
  * cui corrisponde la stringa binaria passata in input
  *
  * @param hash - Puntatore a carattere rappresentante la stringa da stampare
+ * @param buffer - Puntatore al buffer che conterrà il valore hash convertito in stringa
  */
-void printHash(unsigned char *hash);
+void printHash(unsigned char *hash, char *buffer);
 
 
 /**

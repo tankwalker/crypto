@@ -73,9 +73,9 @@ int comb(comb_parms *parms, int pos) {
 			return 1;
 		}
 
-			strcpy(audit_t->last_try, passwd);
-			audit_t->count = count;
-			pthread_cond_broadcast(&audit_t->waiting);
+		strcpy(audit_t->last_try, passwd);
+		audit_t->count = count;
+		pthread_cond_broadcast(&audit_t->waiting);
 
 		// altrimenti si prosegue
 		return 0;
@@ -83,7 +83,7 @@ int comb(comb_parms *parms, int pos) {
 
 	// Se count è zero indica che si è nella fase di inizializzazione
 	if (!count) {
-		// caloclo della combinazione iniziale per la computazione
+		// calcolo della combinazione iniziale per la computazione
 		for (i = (parms->init->starting_point)[pos];
 				i < cs_size && count != chunk; i++) {
 
@@ -125,13 +125,43 @@ int *compute_starting_point(long init, int cs_size, int passlen) {
 	return starting_point;
 }
 
+/**
+ * Resituisce il puntatore al descrittore per la partizione dello
+ * spazio delle chiavi tra i processi worker
+ */
+inline keyspace *kspace_init(int csize, int psize){
+	keyspace *chunk;
+	chunk = malloc(sizeof(keyspace));
+	chunk->disp = DISPOSITIONS(csize, psize);
+	chunk->id = chunk->disp;
+	chunk->size = DISP_PER_PROC(chunk->disp, NO_CHUNK_SPLIT);
+	return chunk;
+}
+
+/**
+ * Calcola il prossimo identificativo numerico progressivo
+ * della prima combinazione del prossimo quanto di lavoro
+ * L'oggetto chunk è un puntatore al descrittore del partizionamento
+ * dello spazio delle chiavi e deve essere precedentemente
+ * inizializzato della funzione key_space.
+ * La funzione dealloca automaticamente il descrittore una
+ * volta che lo spazio delle chiavi è stato esaustivamente testato.
+ *
+ * Attenzione, nessun controllo dei correttezza dei parametri!
+ */
+inline long next_chunk(keyspace *chunk){
+	if ((chunk->id -= chunk->size) > 0)
+		return chunk->id;
+	free(chunk);
+	return -1;
+}
 
 /*
  * -------------------------------------------
  * key_gen
  * -------------------------------------------
  */
-int key_gen(int rank, int num_procs, th_parms *_audit) {		//TODO: package dei parametri MPI
+int key_gen(int rank, int num_procs, th_parms *ibus) {		//TODO: package dei parametri MPI
 
 	int *starting_point;				/// Identificativo della combinazione da cui avviare l'algoritmo
 	int ret, passlen;
@@ -142,7 +172,7 @@ int key_gen(int rank, int num_procs, th_parms *_audit) {		//TODO: package dei pa
 	string_t *cs, *passwd;				/// Stringhe del charset selezionato e della password in chiaro
 	comb_settings *settings;			/// Settaggi per l'algoritmo
 
-	debug("KEYGEN", "Avvio partizionamento delle chiavi...\n");
+	debug("KGEN", "Avvio partizionamento delle chiavi...\n");
 
 	/* Gestione del layout di memoria interno tramite la struttura proprietaria */
 	allocs = init_mem_layout();
@@ -152,7 +182,7 @@ int key_gen(int rank, int num_procs, th_parms *_audit) {		//TODO: package dei pa
 	allocate(allocs, &settings, sizeof(comb_settings));
 	/* fine gestione layout memoria */
 
-	audit_t = _audit;
+	audit_t = ibus;
 	count = 0;
 	ret = 0;
 
@@ -160,39 +190,41 @@ int key_gen(int rank, int num_procs, th_parms *_audit) {		//TODO: package dei pa
 
 	cs->str = ui->cs;
 	cs->size = strlen(ui->cs);
-	passwd->str = malloc((ui->passlen + 1) * sizeof(char)); // alloca spazio di 16 caratteri per la stringa di output
-	passwd->size = ui->passlen;
-	memset(passwd->str, '\0', (ui->passlen + 1) * sizeof(char)); // inizializza la stringa di lavoro
-
-	/*
-	 * Calcola il numero di disposizioni ed individua
-	 * il numero progressivo della combinazione di partenza
-	 */
-	my_rank = rank;
-	disp = DISPOSITIONS(cs->size, ui->passlen);		// Numero di disposizioni da calcolare
-	chunk = DISP_PER_PROC(disp, num_procs);			// Numero di disposizioni che ogni processo deve calcolare
-
-	init = chunk * my_rank;
-
-	/* Calcola la combinazione di partenza ed imposta i parametri di lavoro */
-	starting_point = compute_starting_point(init, cs->size, ui->passlen);
-
-	settings->chunk = chunk;
-	settings->starting_point = starting_point;
+	passwd->str = malloc(MAX_PASSWD_LEN * sizeof(char)); // alloca spazio per la stringa di output
+	passwd->size = 1;
+	memset(passwd->str, '\0', MAX_PASSWD_LEN * sizeof(char)); // inizializza la stringa di lavoro
 
 	parms->cs = cs;
 	parms->passwd = passwd;
 	parms->init = settings;
 
-	/* Avvia la funzione di brute force */
+	/* Avvia la funzione di brute force incrementale*/
 	passlen = 1;	// TODO: testare il brute-force incrementale
-	while (passlen < parms->passwd->size){
+	while (passwd->size <= ui->passlen){
+		debug("KGEN", "Provo con %d caratteri\n", passwd->size);
+
+		/* Calcola la combinazione di partenza ed imposta i parametri di lavoro */
+		my_rank = rank;
+		ibus->wterm = 0;
+
+		pthread_cond_wait(&ibus->waiting, &ibus->lock);
+		//init = chunk * my_rank;
+		init = ibus->cid;
+
+		starting_point = compute_starting_point(init, cs->size, passwd->size);
+
+		settings->chunk = chunk;
+		settings->starting_point = starting_point;
+
+		count = 0;
 		ret = comb(parms, 0);
 		if (ret) {
-			/* Combinazione trovata; viene scritta nel buffer in chiaro */
-			strcpy(_audit->plain, parms->passwd->str);
+			/* La combinazione in chiaro trovata viene scritta nel buffer */
+			strcpy(ibus->plain, parms->passwd->str);
 			break;
 		}
+
+		debug("KGEN", "Tentativo con %d caratteri fallito\n", passwd->size);
 
 		/* altrimenti la combinazione non è stata ancora trovata.
 		 * Tale situazione può verificarsi o perché il charset
@@ -203,7 +235,7 @@ int key_gen(int rank, int num_procs, th_parms *_audit) {		//TODO: package dei pa
 		 * altro brute force con una lunghezza di chiave maggiore.
 		 */
 
-		passlen++;
+		passwd->size++;
 	}
 
 	pthread_cleanup_pop(work_cleanup);
@@ -218,10 +250,9 @@ int key_gen(int rank, int num_procs, th_parms *_audit) {		//TODO: package dei pa
  * -------------------------------------------
  */
 void work_cleanup(allocation *allocs) {
-	debug("WRK_CLN", "Processo %d -> Count = %d\n", my_rank, count);
-
 	/* Pulisce tutte le strutture dati allocte internamente */
 	destroy_all(allocs);
 
-	debug("WRK_CLN", "Exiting Work_cleanup...\n");
+	debug("WRK_CLN", "Processo %d -> Count = %d\n", my_rank, count);
+	//debug("WRK_CLN", "Exiting Work_cleanup...\n");
 }

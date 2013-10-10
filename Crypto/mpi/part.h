@@ -18,7 +18,20 @@
 #define STARTING_CHAR(init, cs_size, pos) (((long)((init)/(powl(cs_size, pos))))%(cs_size));
 
 #define BCAST_TAG 0
+#define NO_CHUNK_SPLIT	500		/// Numero di quanti in cui splittare le dsposizioni da passare ai worker
 
+
+typedef struct quantum {
+	long disp;		/// Dimensione dello spazio di lavoro
+	long size;		/// Dimensione di un quanto di lavoro
+	long id;		/// Ultimo intero di identificazione della prima combinazione che rimane da calcolare
+} keyspace;
+
+typedef int* key_start_t;
+
+inline keyspace *kspace_init(int csize, int psize);
+
+inline long next_chunk(keyspace *chunk);
 
 /**
  * Effettua il test sullo hash MD5 per la chiave generata.

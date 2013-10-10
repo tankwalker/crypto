@@ -18,6 +18,7 @@
 #define TAG_ABORT		2		/// Messaggio di abort
 #define TAG_PLAIN		3		/// Messaggio di comunicazione della password in chiaro
 #define TAG_AUDIT		4		/// Messaggio di comunicazione dell'ultima password tentata
+#define TAG_QUANTUM	5		/// Messaggio di comunicazione di un nuovo quanto di lavoro
 
 /* Posizioni numeriche dei parametri passati al processo MPI */
 #define PARM_HASH		1
@@ -27,7 +28,8 @@
 #define PARM_AUDITING	5
 #define PARM_ATTACK		6
 
-#define LOOP_TIMEOUT	500		/// Tempo (us) di attesa nel cilco di controllo sulla condizione di terminazione
+#define LOOP_TIMEOUT	5		/// Tempo (sec) di attesa nel cilco di controllo sulla condizione di terminazione
+#define AUDIT_SLEEP_TIMEOUT	2	/// Tempo (sec) di attesa nel ciclo per la stampa a video dell'ultimo tentativo
 #define PERM			0755	/// Permessi di accesso alla shared memory
 #define PERCENTAGE		10		/// Percentuale che indica ogni quante password ne viene stampata una dal thread di auditing
 #define TH_NUM		2			/// Numero di thread utilizzati dal supervisor

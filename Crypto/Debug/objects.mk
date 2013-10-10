@@ -4,5 +4,5 @@
 
 USER_OBJS :=
 
-LIBS := -lm -lpthread -lmhash -lncurses -pg
+LIBS := -lm -lpthread -lmhash -lncurses -lreadline -pg
 

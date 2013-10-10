@@ -16,12 +16,15 @@
 
 #define DEBUG 1
 #define VERBOSE 1
-#define HEAD_PMT "[%d] - %s:: "
+#define HEAD_PMT "[%d @ %s] - %s:: "
+
+unsigned int verbose;
+char hostname[HOSTNAME_SIZE];
 
 #ifdef DEBUG
 
 #define debug(head, ...) do {		\
-		printf(HEAD_PMT, getpid(), (head));	\
+		printf(HEAD_PMT, getpid(), hostname, (head));	\
 		printf(__VA_ARGS__);		\
 } while(0)
 
@@ -41,7 +44,7 @@
 	} while(0)
 
 #define verbose(head, ...) do { 	\
-	if(VERBOSE){ 					\
+	if(verbose){ 					\
 		printf(HEAD_PMT, getpid(), (head)); 	\
 		printf(__VA_ARGS__); 		\
 	}								\

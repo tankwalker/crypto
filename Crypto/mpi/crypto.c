@@ -47,7 +47,9 @@
 user_input *ui;			/// Struttura di raccolta dei parametri da utente
 th_parms *ibus;			/// Struttura di BUS per la comunicazione inter-processo
 
-int verbose, slow, auditing, attack;
+extern unsigned int verbose;
+extern char hostname[];
+int slow, auditing, attack;
 int *wrk_errno, *aud_errno;			/// Codici di terminazione dei sottoprocessi
 pthread_t worker_tid, audit_tid;		/// Identificativi dei thread interni di lavoro
 char last_try[256];					/// Buffer di memorizzazione dell'ultimo tentavio compiuto per l'auditing
@@ -77,16 +79,21 @@ int main(int argc, char *argv[]) {
 		ui->attack = atoi(argv[PARM_ATTACK]);
 	}
 
-	else
+	else {
+		printf("Parametri non corretti\n");
 		return -EPARM;
+	}
 
 	/* Arma il segnale di terminazione affinché venga catturato dal
 	 * gestore interno */
 	signal(SIGUSR1, abort_mpi);
 
-	auditing = ui->auditing;
+	auditing = ui->auditing;	//TODO: usare i puntatori!
 	verbose = ui->verbose;
 	attack = ui->attack;
+
+	/* Imposta l'host name */
+	gethostname(hostname, HOSTNAME_SIZE);
 
 	/* start up MPI */
 	debug("MPI", "Inizializzazione Libreria MPI...\n");
@@ -140,6 +147,7 @@ int main(int argc, char *argv[]) {
  */
 int supervisor() {
 	int ret, status = 1;
+	int shared;
 	pid_t worker_pid;
 	struct shmid_ds shmds;
 
@@ -152,7 +160,6 @@ int supervisor() {
 	*aud_errno = 0;
 
 	/* Creazione della shared memory */
-	int shared;
 	key_t key = PRIME*(my_rank+1);
 	shared = shmget(key, sizeof(th_parms), IPC_CREAT|PERM);
 
@@ -243,7 +250,7 @@ int supervisor() {
 	 */
 	kill(worker_pid, SIGQUIT);
 	waitpid(worker_pid, &status, 0);
-	debug("SV", "Thread worker del processo %d terminato con codice errore %d (%s)\n", my_rank, status, strerror(status));
+	debug("SV", "Worker process %d terminato con codice errore %d (%s)\n", my_rank, status, strerror(status));
 
 	/* nel caso questo sia il processo master per la libreria MPI, allora
 	 * è necessario procedere anche alla lettura del buffer che contiene
@@ -254,15 +261,15 @@ int supervisor() {
 			pprintf("SV", "La password è '%s'\n", ibus->plain);
 		}
 		else
-			pprintf("SV", "Password non trovata!!!\n");
+			pprintf("SV", "Password non trovata!!!\n");			//TODO: inviare la password in chiaro trovata alla shell
 	}
 
 	/* Deallocazione strutture dati */
-	debug("WRK", "Deallocazione strutture dati dedicate ai thread da parte del processo %d\n", my_rank);
+	//debug("WRK", "Deallocazione strutture dati dedicate ai thread da parte del processo %d\n", my_rank);
+	debug("SV", "Deallocazione strutture dati da parte del processo %d\n", my_rank);
 	pthread_mutex_destroy(&ibus->lock);
 	pthread_cond_destroy(&ibus->waiting);
 
-	debug("SV", "Deallocazione strutture dati da parte del processo %d\n", my_rank);
 	free(wrk_errno);
 	sem_destroy(&ibus->mutex);
 	shmdt(ibus);
@@ -280,24 +287,35 @@ int supervisor() {
 int listener(th_parms *parms) {
 	MPI_Status status;
 	char buffer[MAX_PASSWD_LEN];
+	unsigned char alive[num_procs];
 	int flag, quorum;
+	long cid;
+	keyspace *quantum;
+
+	/* Il master inizializza una semplice 'bitmap' per
+	 * tenere traccia dei worker ancora in attività */
+	if(!my_rank){
+		quantum = kspace_init(strlen(ui->cs), ui->passlen);
+
+		for(quorum = 0; quorum < num_procs; ++quorum){
+			alive[quorum] = 1;
+			//id = next_chunk(quantum);
+			//MPI_Send(&id, 1, MPI_LONG, quorum, TAG_QUANTUM, MPI_COMM_WORLD);
+		}
+	}
 
 	quorum = num_procs;
+	flag = 0;
 
 	/* Finché esistono worker attivi, il valore della varibile 'quorum' è positivo*/
-	while(quorum > 0){
+	while(quorum){
 
 		/* Controllo messaggio terminazione worker da parte del master process*/
 		if(!my_rank){
 			MPI_Iprobe(MPI_ANY_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &flag, &status);
 			if(flag){
-				/* Ricezione del messaggio di completamento */
+				/* Ricezione del messaggio di 'fine lavoro' di un worker process */
 				MPI_Recv(&flag, 1, MPI_INT, status.MPI_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &status);
-				quorum--;		// Decrementa il numero dei worker ancora in attività
-
-				debug("LST", "Processo %d ha terminato con codice %d\n", status.MPI_SOURCE, flag);
-				debug("LST", "Quorum residuo = %d\n", quorum);
-
 				/* la variabile flag ora contiene l'informanzione se la password è stata rilevata */
 				if(flag){
 					/* Il worker ha effettivamente trovato la password */
@@ -312,6 +330,22 @@ int listener(th_parms *parms) {
 					 * verificato dal solo processo master al ritorno da questa funzione. */
 					term();
 				}
+
+				/* Controlla la possibilità di inviare un altro quanto di lavoro */
+				if((cid = next_chunk(quantum)) > 0){
+					MPI_Send(&cid, 1, MPI_LONG, quorum, TAG_QUANTUM, MPI_COMM_WORLD);
+					debug("LST", "Invio nuovo quanto al processo %d (%d)\n", status.MPI_SOURCE, cid);
+				}
+
+				/* In caso negativo si preoccupa di rimuovere il worker process dalla lista
+				 * dei processi attivi, se non è già stato eliminato */
+				else if(alive[status.MPI_SOURCE]){
+					alive[status.MPI_SOURCE] = 0;
+					quorum--;		// Decrementa il numero dei worker ancora in attività
+
+					debug("LST", "Processo %d ha terminato con codice %d\n", status.MPI_SOURCE, flag);
+					debug("LST", "Quorum residuo = %d\n", quorum);
+				}
 			}
 		}
 
@@ -320,7 +354,10 @@ int listener(th_parms *parms) {
 		flag = parms->wterm;		//TODO: Il profiling mostra un utilizzo eccessivo di questa istruzione!
 		sem_post(&parms->mutex);
 
-		if(flag >= 0){
+		/* TODO: Attenzione la comunicazione del peer della propria termianzione in contemporanea con il segnale di abort invato dal
+		   induce il master a decrementare il contatore quorum due volte come risultato della ricezione dei due ACK da parte del peer.
+		   è necessario un meccanismo di segnalazione di quale peer ha effettivamnte termianto piuttosto che un contatore semplice  */
+		if(flag >= 0 && quorum){
 			debug("LST", "Il processo %d ha terminato con %d\n", my_rank, flag);
 			MPI_Send(&flag, 1, MPI_INT, 0, TAG_COMPLETION, MPI_COMM_WORLD);
 
@@ -334,15 +371,23 @@ int listener(th_parms *parms) {
 				MPI_Send(parms->plain, MAX_PASSWD_LEN, MPI_CHAR, 0, TAG_PLAIN, MPI_COMM_WORLD);
 			}
 
+			else {
+				MPI_Recv(&cid, 1, MPI_LONG, 0, TAG_QUANTUM, MPI_COMM_WORLD, &status);
+				debug("LST", "Processo %d: Ricevuto nuovo quanto (%d)\n", cid);
+				pthread_cond_broadcast(&ibus->waiting);
+				continue;
+			}
+
 			if(my_rank)
 				break;
-			//parms->wterm = -1;
+
+			parms->wterm = -1;
 		}
 
 		/* Controllo richiesta terminazione asincrona */
 		MPI_Iprobe(0, TAG_ABORT, MPI_COMM_WORLD, &flag, &status);
 		if (flag) {
-			/* La shell ha effettivamente richiesto la terminazione forzata */
+			/* La shell ha richiesto la terminazione forzata */
 			MPI_Recv(&flag, 1, MPI_INT, 0, TAG_ABORT, MPI_COMM_WORLD, &status);
 			flag = 0;
 			MPI_Send(&flag, 1, MPI_INT, 0, TAG_COMPLETION, MPI_COMM_WORLD);
@@ -353,6 +398,8 @@ int listener(th_parms *parms) {
 				break;
 		}
 	}
+
+	sleep(LOOP_TIMEOUT);
 
 	debug("LST", "Break listening loop sul processo %d\n", my_rank);
 	return parms->wterm;
@@ -421,16 +468,19 @@ void audit(th_parms *parms){
 		pthread_mutex_lock(&parms->lock);
 		pthread_cond_wait(&parms->waiting, &parms->lock);	// CS_PTHREAD INIT
 
-		if(parms->count % percentage){
+		/*if(parms->count % percentage){
 			// Se la percentuale non è pari al valore computato come soglia, ignora
 			pthread_mutex_unlock(&parms->lock);
 			continue;
-		}
+		}*/
 
 		//TODO: formattazione dell'output di processo
 		debug("LST", "L'ultima password provata dal processo %d è '%s' (%ld)\n", my_rank, parms->last_try, parms->count);
 
 		pthread_mutex_unlock(&parms->lock); // CS_PTHREAD END
+
+		if(attack != DICT_ATTACK)
+			sleep(AUDIT_SLEEP_TIMEOUT);
 	}
 
 	*aud_errno = 0;
@@ -491,7 +541,7 @@ inline void term(){
 
 	for (i = 0; i < num_procs; i++) {
 		debug("MPI", "Processo %d: Invio comando terminazione al processo %d\n", my_rank, i);
-		MPI_Send(&flag, 1, MPI_INT, i, TAG_ABORT, MPI_COMM_WORLD);
+		MPI_Send(&flag, 1, MPI_INT, i, TAG_ABORT, MPI_COMM_WORLD);		//TODO: Attenzione è necesario un meccanismo non bloccante!
 		debug("MPI", "Processo %d: Comando terminazione al processo %d inviato\n", my_rank, i);
 	}
 }

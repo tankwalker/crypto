@@ -49,17 +49,19 @@ int hexToBin(unsigned char c) {
 
 }
 
-void printHash(unsigned char *hash) {
+void printHash(unsigned char *hash, char *buffer) {
 	int i;
 	unsigned char toCopy;
 
-	printf("0x");
+	//printf("0x");
+	strcpy(buffer, "0x");
 
 	for (i = 0; i < mhash_get_block_size(MHASH_MD5); i++) {
-		printf("%.2x", hash[i]);
+		//printf("%.2x", hash[i]);
+		sprintf(buffer+2+2*i, "%.2x", hash[i]);
 	}
 
-	fflush(stdout);
+	//fflush(stdout);
 }
 
 int strToBin(char *token, char *dest, int size) {

@@ -22,6 +22,8 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #include "shell.h"
 #include "hash.h"
@@ -72,10 +74,10 @@ void shell() {
 	char num_procs[32];
 	char spasslen[STR_INT_SIZE], sverbose[STR_INT_SIZE], sauditing[STR_INT_SIZE], sdictionary[STR_INT_SIZE];
 	int ret, num;
-	unsigned char buffer[256], *token;
+	unsigned char buffer2[256], *token;
 	unsigned char hash[HASH_SIZE];
 	pthread_t wait_id;
-
+	char *buffer;
 
 	printf("==============================\n");
 	printf("           Crypto\n");
@@ -84,6 +86,9 @@ void shell() {
 	/* Azzeramento aree di memoria */
 	bzero(ui, sizeof(user_input));
 	strcpy(num_procs, "1");
+	strcpy(ui->cs, charsets[0]);
+	ui->passlen = 1;
+	buffer = malloc(32 * sizeof(char));
 
 	/* Arma i segnali di terminazione forzata */
 	signal(SIGHUP, sig_halt);
@@ -93,14 +98,16 @@ void shell() {
 
 	/* Avvia il main loop di shell per la configurazione */
 	while (1) {
-		printf(PROMPT);
-		fflush(stdout);
+		//printf(PROMPT);
+		//fflush(stdout);
 
 		bzero(buffer, sizeof(buffer));
-		if (!fgets(buffer, sizeof(buffer), stdin)) {
+		/*if (!fgets(buffer, sizeof(buffer), stdin)) {
 			printf("Errore sullo stdin! Esco\n");
 			exit(-EIO);	//TODO: codice errore
-		}
+		}*/
+		buffer = readline(PROMPT);
+
 
 		token = strtok(buffer, " \n");
 		if (token == NULL ) {
@@ -117,11 +124,11 @@ void shell() {
 			token = strtok(NULL, " \n");
 
 			if(token == NULL){
-				printf("usage: set [passwd | passlen | cs | proc] {value}\n");
+				printf("usage: set [%s | %s | %s | %s] {value}\n", CMD_SET_HASH, CMD_SET_SIZE, CMD_SET_CS, CMD_SET_PROC);
 				continue;
 			}
 
-			if (!strcmp(token, "passlen")) {
+			if (!strcmp(token, CMD_SET_SIZE)) {
 				token = strtok(NULL, " \n");
 
 				ret = (int) strtol(token, NULL, BASE);
@@ -135,11 +142,11 @@ void shell() {
 						ui->passlen);
 			}
 
-			if (!strcmp(token, "passwd")) {
+			if (!strcmp(token, CMD_SET_HASH)) {
 				token = strtok(NULL, " \n");
 
 				if(token == NULL){
-					printf("usage: set passwd {MD5-hash}\n");
+					printf("usage: set %s {MD5-hash}\n", CMD_SET_HASH);
 					continue;
 				}
 
@@ -157,11 +164,11 @@ void shell() {
 
 			}
 
-			if (!strcmp(token, "cs")) {
+			if (!strcmp(token, CMD_SET_CS)) {
 				token = strtok(NULL, " \n");
 
 				if(token == NULL){
-					printf("usage: set cs [0, 6]\n");
+					printf("usage: set %s [0, 6]\n", CMD_SET_CS);
 					continue;
 				}
 
@@ -176,10 +183,10 @@ void shell() {
 			}
 
 			// -------------- NP -----------------
-			if(!strcmp(token, "proc")) {
+			if(!strcmp(token, CMD_SET_PROC)) {
 				token = strtok(NULL, " \n");
 				if(token == NULL){
-					printf("usage: set proc {N > 0}\n");
+					printf("usage: set %s {N > 0}\n", CMD_SET_PROC);
 					continue;
 				}
 
@@ -198,11 +205,11 @@ void shell() {
 		else if (!strcmp(token, "run")) {
 			pprintf("SHELL", "Avvio procedura decrittazione con parametri:\n");
 			printf("\tcharset = '%s'\n", ui->cs);
-			printf("\tpasswd: %s", ui->hash);
+			printf("\thash: %s", ui->hash);
 			printf("\n\tpasslen = %d\n", ui->passlen);
 			printf("\tNumero processi MPI: %s\n", num_procs);
 			printf("\tAuditing %s\n", ui->auditing ? "abilitato" : "disabilitato");
-			//	printf("\tModalità debug %s\n", ui->verbose ? "abilitata" : "disabilitata");
+			//	printf("\tVerbose mode %s\n", ui->verbose ? "abilitata" : "disabilitata");
 			printf("\tAttacco %s\n", ui->attack ? "a dizionario" : "brute force");
 			printf("\tConferma? (y, n) ");
 			fflush(stdout);
@@ -212,7 +219,7 @@ void shell() {
 			}
 
 			if (buffer[0] == 'y') {
-				if(ui->cs == 0 || ui->passlen <= 0 || ui->hash == 0){
+				if(ui->cs <= 0 || ui->passlen <= 0 || ui->hash <= 0){
 					printf("Parametri non corretti!\nEsecuzione annullata\n");
 					continue;
 				}
@@ -261,16 +268,22 @@ void shell() {
 			}
 
 			hashMD5(token, hash);
-			printf("> MD5('%s') = ", token);
-			printHash(hash);
-			printf("\n");
+			printHash(hash, buffer2);
+			printf("> MD5('%s') = %s\n", token, buffer2);
+
+			// Autosets
+			strcpy(ui->hash, buffer2);
+			ui->passlen = strlen(token);
+			printf("Impostato automaticamente:\n");
+			printf("passwd hash = %s\n", ui->hash);
+			printf("passlen = %d\n", ui->passlen);
 		}
 
 		// -------------- VERBOSE -----------------
-		else if (!strcmp(buffer, "verbose")) {
+		else if (!strcmp(buffer, CMD_VERBOSE)) {
 			token = strtok(NULL, " \n");
 			if(token == NULL){
-				printf("usage: verbose {0,1}\n");
+				printf("usage: %s {0,1}\n", CMD_VERBOSE);
 				continue;
 			}
 
@@ -280,10 +293,10 @@ void shell() {
 		}
 
 		// -------------- AUDITING -----------------
-		else if (!strcmp(buffer, "auditing")) {
+		else if (!strcmp(buffer, CMD_AUD)) {
 			token = strtok(NULL, " \n");
 			if(token == NULL){
-				printf("usage: auditing {0,1}\n");
+				printf("usage: % {0,1}\n", CMD_AUD);
 				continue;
 			}
 			ui->auditing = (int) strtol(token, NULL, BASE);
@@ -293,10 +306,10 @@ void shell() {
 
 		// -------------- ATTACK TYPE -----------------
 		//TODO Scelta dizionario da usare
-		else if (!strcmp(buffer, "dictionary")) {
+		else if (!strcmp(buffer, CMD_DICT)) {
 			token = strtok(NULL, " \n");
 			if(token == NULL){
-				printf("usage: dictionary {0,1}\n");
+				printf("usage: %s {0,1}\n", CMD_DICT);
 				continue;
 			}
 
@@ -305,8 +318,15 @@ void shell() {
 			else printf("Impostato attacco brute force\n");
 		}
 
+		// --------------- TEST -----------------
+		else if (!strcmp(buffer, CMD_TEST_PASSWD)){
+			token = strtok(buffer, " \n");
+
+
+		}
+
 		// -------------- ABORT -----------------
-		else if (!strcmp(buffer, "abort")){
+		else if (!strcmp(buffer, CMD_ABORT)){
 			sh_abort_mpi();
 		}
 
