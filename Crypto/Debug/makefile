@@ -21,16 +21,23 @@ HASH_FALCON := 0xfa0d1a60ef6616bb28038515c8ea4cb2
 HASH_ZZZZZ := 0x95ebc3c7b3b9f1d2c40fec14415d3cb8
 HASH_6Z := 0x453e41d218e071ccfb2d1c99ce23906a
 
+# TAU compiling macro
+TAU_CC := /home/mpiuser/tau-2.22.2/x86_64/bin/tau_cc.sh
+TAU_OPT := '-optCompInst -optNoRevert -optPdtInst'
+TAU_MAKE := /home/mpiuser/tau-2.22.2/x86_64/lib/Makefile.tau-memory-papi-mpi-pthread-pdt-profile-trace
+TAU_GOAL := $(TAU_CC) -tau_options=$(TAU_OPT) -tau_makefile=$(TAU_MAKE)
+TAU_COMPILING := 1
+
 # Default profiling macro values
 proc := 1
 repeat := 5
 
 # Executable names
-MPI_EXEC := "launchMPI"
+MPI_EXEC := "cryptompi"
 SHELL_EXEC := "crypto"
 
 # Compiling macros
-CFLAGS := -O2 -pg
+CFLAGS := -O2 -pg -g
 RM := rm -rf
 
 # All of the sources participating in the build are defined here
@@ -47,23 +54,29 @@ ifneq ($(strip $(C_DEPS)),)
 endif
 endif
 
+ifeq ($(TAU_COMPILING),1)
+CCC := $(TAU_GOAL)
+else
+CCC := mpicc $(CFLAGS)
+endif
+
 -include ../makefile.defs
 
 # Add inputs and outputs from these tool invocations to the build variables 
 
 # All Target
-all: Crypto Shell
+all: crypto shell
 
 # Tool invocations
-Crypto: $(OBJS) $(CRYPTO_OBJS) $(USER_OBJS)
+crypto: $(OBJS) $(CRYPTO_OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
-	mpicc  $(CFLAGS) -o $(MPI_EXEC) $(CRYPTO_OBJS) $(OBJS) $(USER_OBJS) $(LIBS)
+	$(CCC) -o $(MPI_EXEC) $(CRYPTO_OBJS) $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 	
 # Tool invocations
-Shell: $(OBJS) $(SHELL_OBJS) $(USER_OBJS)
+shell: $(OBJS) $(SHELL_OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
 	gcc $(CFLAGS) -o $(SHELL_EXEC) $(SHELL_OBJS) $(OBJS) $(USER_OBJS) $(LIBS)
@@ -72,19 +85,19 @@ Shell: $(OBJS) $(SHELL_OBJS) $(USER_OBJS)
 
 # Other Targets
 clean:
-	-$(RM) $(OBJS)$(C_DEPS) $(SHELL_OBJS) $(CRYPTO_OBJS) $(EXECUTABLES) Crypto launchMPI
+	-$(RM) $(OBJS)$(C_DEPS) $(SHELL_OBJS) $(CRYPTO_OBJS) $(EXECUTABLES) $(MPI_EXEC) $(SHELL_EXEC)
 	-@echo ' '
 
 test:
 	@echo 'Test di correttezza per attacco brute force locale su tre processi, passwd = intel'
-	@(mpirun -np 3 --hostfile runners.host ./launchMPI $(HASH_INTEL) 5 $(TEST_CS) 0 1 0)
+	@(mpirun -np 3 --hostfile runners.host ./$(MPI_EXEC) $(HASH_INTEL) 5 $(TEST_CS) 0 1 0)
 	@echo 'Test terminato'
 	@echo ' '
 
 profile_raw:
 	@echo 'Verrà eseguito il profiling sulla media delle $(repeat) esecuzioni di attacco brute force locale senza uso della libreria MPI'
 	@echo 'Numero di processi = 1, passwd = intel'
-	@(perf stat -o $(LOG_RAW) -r$(repeat) -e $(PERF_STAT) ./launchMPI $(HASH_INTEL) 5 $(TEST_CS) 0 0 0)
+	@(perf stat -o $(LOG_RAW) -r$(repeat) -e $(PERF_STAT) ./$(MPI_EXEC) $(HASH_INTEL) 5 $(TEST_CS) 0 0 0)
 	@echo 'Profiling terminato'
 	@echo 'Log delle statistiche sul file $(LOG_RAW)'
 	@echo ' '
@@ -92,7 +105,7 @@ profile_raw:
 profile_local:
 	@echo 'Verrà eseguito il profiling sulla medie delle $(repeat) esecuzioni di attacco brute force locale'
 	@echo 'Numero di processi = $(proc),  passwd = zzzzz'
-	@(perf stat -o perf.stat $(PERF_FLAGS) -r$(repeat) -e $(PERF_STAT) mpirun -np $(proc) ./launchMPI $(HASH_ZZZZZ) 5 $(TEST_CS) 0 0 0)
+	@(perf stat -o perf.stat $(PERF_FLAGS) -r$(repeat) -e $(PERF_STAT) mpirun -np $(proc) ./$(MPI_EXEC) $(HASH_ZZZZZ) 5 $(TEST_CS) 0 0 0)
 	@echo 'Profiling terminato'
 	@echo 'Log delle statistiche sul file perf.stat'
 	@echo ' '
@@ -100,7 +113,7 @@ profile_local:
 profile_wide:
 	@echo "Verrà eseguito il profiling sull'attacco brute force distribuito"
 	@echo 'Numero di processi = $(proc),  passwd = falcon'
-	@(perf stat -o $(LOG_WIDE) $(PERF_FLAGS) -e $(PERF_STAT) mpirun -np $(proc) --hostfile runners.host ./launchMPI $(HASH_6Z) 6 $(TEST_CS) 0 0 0)
+	@(perf stat -o $(LOG_WIDE) $(PERF_FLAGS) -e $(PERF_STAT) mpirun -np $(proc) --hostfile runners.host ./$(MPI_EXEC) $(HASH_6Z) 6 $(TEST_CS) 0 0 0)
 	@echo 'Profiling terminato'
 	@echo 'Log delle statistiche sul file $(LOG_WIDE)'
 	@echo ' '
@@ -113,7 +126,13 @@ profile_all:
 profile_wall:
 	for number in 2 3 4 6 8 10; do \
 	make profile_wide proc=$$number; \
-	done
+	done 
+
+vampir:
+	@(mpirun -np $(proc) vtrun -v ./$(MPI_EXEC) $(HASH_ZZZZZ) 5 $(TEST_CS) 0 0 0)
+
+tau:
+	@(mpirun -np $(proc) tau_exec -v ./$(MPI_EXEC))
 
 .PHONY: all clean dependents test profile_raw profile_local profile_wide profile_all pofile_wall
 .SECONDARY:

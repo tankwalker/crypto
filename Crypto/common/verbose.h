@@ -45,14 +45,14 @@ char hostname[HOSTNAME_SIZE];
 
 #define verbose(head, ...) do { 	\
 	if(verbose){ 					\
-		printf(HEAD_PMT, getpid(), (head)); 	\
+		printf(HEAD_PMT, getpid(), hostname, (head)); 	\
 		printf(__VA_ARGS__); 		\
 	}								\
 	} while(0)
 
 
 #define pprintf(head, ...) do {		\
-		printf(HEAD_PMT, getpid(), (head));	\
+		printf(HEAD_PMT, getpid(), hostname, (head));	\
 		printf(__VA_ARGS__);		\
 	} while(0);
 

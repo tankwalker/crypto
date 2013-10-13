@@ -4,5 +4,4 @@
 
 USER_OBJS :=
 
-LIBS := -lm -lpthread -lmhash -lncurses -lreadline -pg
-
+LIBS := -L/usr/lib/openmpi -lmpi -lm -lpthread -lmhash -lncurses -lreadline

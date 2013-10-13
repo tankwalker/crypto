@@ -1,0 +1,174 @@
+# started on Mon Oct  7 18:03:41 2013
+
+
+ Performance counter stats for 'mpirun -np 1 --hostfile runners.host ./launchMPI 0x4e5bbaeafc82ab7aa1385bea8ef5d30a 5 abcdefghijklmnopqrstuvwxyz 0 0 0' (5 runs):
+
+       4543,114066 task-clock                #    1,986 CPUs utilized            ( +-  0,66% )
+       4543,115755 cpu-clock                                                     ( +-  0,66% )
+                81 context-switches          #    0,018 K/sec                    ( +-  3,76% )
+                 5 cpu-migrations            #    0,001 K/sec                    ( +- 12,15% )
+              3914 page-faults               #    0,861 K/sec                    ( +-  0,02% )
+                 0 alignment-faults          #    0,000 K/sec                  
+       13138647616 cycles                    #    2,892 GHz                      ( +-  0,29% ) [45,65%]
+        4655046522 stalled-cycles-frontend   #   35,43% frontend cycles idle     ( +-  0,57% ) [45,63%]
+        2049195212 stalled-cycles-backend    #   15,60% backend  cycles idle     ( +-  0,82% ) [45,65%]
+       24002164301 instructions              #    1,83  insns per cycle        
+                                             #    0,19  stalled cycles per insn  ( +-  0,19% ) [54,78%]
+        4844755130 branches                  # 1066,395 M/sec                    ( +-  0,17% ) [54,75%]
+          12835306 branch-misses             #    0,26% of all branches          ( +-  1,83% ) [54,74%]
+          24189015 cache-references          #    5,324 M/sec                    ( +-  0,95% ) [45,55%]
+            466147 cache-misses              #    1,927 % of all cache refs      ( +-  9,67% ) [45,48%]
+        5481487556 L1-dcache-loads           # 1206,549 M/sec                    ( +-  0,21% ) [36,30%]
+        5212705632 L1-dcache-stores          # 1147,386 M/sec                    ( +-  0,22% ) [36,49%]
+   <not supported> L1-icache-loads         
+            666482 L1-icache-load-misses     #    0,00% of all L1-icache hits    ( +- 22,56% ) [36,50%]
+   <not supported> L1-icache-prefetch      
+   <not supported> L1-icache-prefetch-misses
+
+       2,288089739 seconds time elapsed                                          ( +-  0,67% )
+
+# started on Mon Oct  7 18:03:52 2013
+
+
+ Performance counter stats for 'mpirun -np 2 --hostfile runners.host ./launchMPI 0x4e5bbaeafc82ab7aa1385bea8ef5d30a 5 abcdefghijklmnopqrstuvwxyz 0 0 0' (5 runs):
+
+       9574,331238 task-clock                #    2,787 CPUs utilized            ( +-  0,65% )
+       9574,337349 cpu-clock                                                     ( +-  0,65% )
+               276 context-switches          #    0,029 K/sec                    ( +- 11,58% )
+                23 cpu-migrations            #    0,002 K/sec                    ( +- 18,94% )
+              6623 page-faults               #    0,692 K/sec                    ( +-  0,03% )
+                 0 alignment-faults          #    0,000 K/sec                  
+       26557527731 cycles                    #    2,774 GHz                      ( +-  0,65% ) [45,65%]
+        9960547113 stalled-cycles-frontend   #   37,51% frontend cycles idle     ( +-  1,07% ) [45,59%]
+        4401640650 stalled-cycles-backend    #   16,57% backend  cycles idle     ( +-  1,59% ) [45,54%]
+       46774636368 instructions              #    1,76  insns per cycle        
+                                             #    0,21  stalled cycles per insn  ( +-  0,79% ) [54,63%]
+        9356179287 branches                  #  977,215 M/sec                    ( +-  0,78% ) [54,56%]
+          26748122 branch-misses             #    0,29% of all branches          ( +-  9,03% ) [54,55%]
+          49639309 cache-references          #    5,185 M/sec                    ( +-  3,10% ) [45,45%]
+            521546 cache-misses              #    1,051 % of all cache refs      ( +- 12,90% ) [45,52%]
+       11003695913 L1-dcache-loads           # 1149,291 M/sec                    ( +-  0,88% ) [36,50%]
+        9793651659 L1-dcache-stores          # 1022,907 M/sec                    ( +-  0,83% ) [36,57%]
+   <not supported> L1-icache-loads         
+           1966602 L1-icache-load-misses     #    0,00% of all L1-icache hits    ( +- 13,96% ) [36,56%]
+   <not supported> L1-icache-prefetch      
+   <not supported> L1-icache-prefetch-misses
+
+       3,435172290 seconds time elapsed                                          ( +-  0,47% )
+
+# started on Mon Oct  7 18:04:09 2013
+
+
+ Performance counter stats for 'mpirun -np 3 --hostfile runners.host ./launchMPI 0x4e5bbaeafc82ab7aa1385bea8ef5d30a 5 abcdefghijklmnopqrstuvwxyz 0 0 0' (5 runs):
+
+      18766,838145 task-clock                #    4,367 CPUs utilized            ( +-  3,00% )
+      18766,869302 cpu-clock                                                     ( +-  3,00% )
+               821 context-switches          #    0,044 K/sec                    ( +- 13,20% )
+                37 cpu-migrations            #    0,002 K/sec                    ( +- 25,32% )
+              9112 page-faults               #    0,486 K/sec                    ( +-  0,04% )
+                 0 alignment-faults          #    0,000 K/sec                  
+       52272433228 cycles                    #    2,785 GHz                      ( +-  2,97% ) [45,59%]
+       27706142235 stalled-cycles-frontend   #   53,00% frontend cycles idle     ( +-  4,65% ) [45,56%]
+       11665902059 stalled-cycles-backend    #   22,32% backend  cycles idle     ( +-  4,63% ) [45,53%]
+       68720653923 instructions              #    1,31  insns per cycle        
+                                             #    0,40  stalled cycles per insn  ( +-  2,73% ) [54,62%]
+       13781674842 branches                  #  734,363 M/sec                    ( +-  2,71% ) [54,56%]
+          52677979 branch-misses             #    0,38% of all branches          ( +- 10,17% ) [54,56%]
+          55570564 cache-references          #    2,961 M/sec                    ( +- 10,94% ) [45,46%]
+           1534989 cache-misses              #    2,762 % of all cache refs      ( +- 20,50% ) [45,51%]
+       16039659036 L1-dcache-loads           #  854,681 M/sec                    ( +-  3,96% ) [36,44%]
+       14279848096 L1-dcache-stores          #  760,909 M/sec                    ( +-  3,77% ) [36,46%]
+   <not supported> L1-icache-loads         
+           6115913 L1-icache-load-misses     #    0,00% of all L1-icache hits    ( +- 22,60% ) [36,48%]
+   <not supported> L1-icache-prefetch      
+   <not supported> L1-icache-prefetch-misses
+
+       4,297210704 seconds time elapsed                                          ( +-  1,31% )
+
+# started on Mon Oct  7 18:04:31 2013
+
+
+ Performance counter stats for 'mpirun -np 4 --hostfile runners.host ./launchMPI 0x4e5bbaeafc82ab7aa1385bea8ef5d30a 5 abcdefghijklmnopqrstuvwxyz 0 0 0' (5 runs):
+
+       6782,294532 task-clock                #    3,588 CPUs utilized            ( +-  1,73% )
+       6782,312493 cpu-clock                                                     ( +-  1,73% )
+               663 context-switches          #    0,098 K/sec                    ( +-  2,28% )
+                21 cpu-migrations            #    0,003 K/sec                    ( +-  8,82% )
+             11611 page-faults               #    0,002 M/sec                    ( +-  0,02% )
+                 0 alignment-faults          #    0,000 K/sec                  
+       18719999795 cycles                    #    2,760 GHz                      ( +-  1,97% ) [45,72%]
+       11326828306 stalled-cycles-frontend   #   60,51% frontend cycles idle     ( +-  1,71% ) [45,61%]
+        4606487992 stalled-cycles-backend    #   24,61% backend  cycles idle     ( +-  1,67% ) [45,59%]
+       20707613890 instructions              #    1,11  insns per cycle        
+                                             #    0,55  stalled cycles per insn  ( +-  2,11% ) [54,74%]
+        4169709535 branches                  #  614,793 M/sec                    ( +-  2,12% ) [54,65%]
+          16191971 branch-misses             #    0,39% of all branches          ( +-  8,73% ) [54,75%]
+          18134795 cache-references          #    2,674 M/sec                    ( +- 20,58% ) [45,69%]
+           1523555 cache-misses              #    8,401 % of all cache refs      ( +- 11,79% ) [45,74%]
+        4701335090 L1-dcache-loads           #  693,178 M/sec                    ( +-  2,47% ) [36,63%]
+        4175718054 L1-dcache-stores          #  615,679 M/sec                    ( +-  2,54% ) [36,68%]
+   <not supported> L1-icache-loads         
+           2334374 L1-icache-load-misses     #    0,00% of all L1-icache hits    ( +- 11,43% ) [36,65%]
+   <not supported> L1-icache-prefetch      
+   <not supported> L1-icache-prefetch-misses
+
+       1,890370465 seconds time elapsed                                          ( +-  0,94% )
+
+# started on Mon Oct  7 18:04:40 2013
+
+
+ Performance counter stats for 'mpirun -np 6 --hostfile runners.host ./launchMPI 0x4e5bbaeafc82ab7aa1385bea8ef5d30a 5 abcdefghijklmnopqrstuvwxyz 0 0 0' (5 runs):
+
+      20038,575606 task-clock                #    5,481 CPUs utilized            ( +-  0,79% )
+      20038,598696 cpu-clock                                                     ( +-  0,79% )
+            915768 context-switches          #    0,046 M/sec                    ( +- 11,33% )
+               116 cpu-migrations            #    0,006 K/sec                    ( +-  5,04% )
+             17036 page-faults               #    0,850 K/sec                    ( +-  0,03% )
+                 0 alignment-faults          #    0,000 K/sec                  
+       55454602336 cycles                    #    2,767 GHz                      ( +-  0,71% ) [45,78%]
+       33760928644 stalled-cycles-frontend   #   60,88% frontend cycles idle     ( +-  0,75% ) [45,71%]
+       16415563127 stalled-cycles-backend    #   29,60% backend  cycles idle     ( +-  1,04% ) [45,61%]
+       57335330289 instructions              #    1,03  insns per cycle        
+                                             #    0,59  stalled cycles per insn  ( +-  0,74% ) [54,74%]
+       11589073730 branches                  #  578,338 M/sec                    ( +-  0,75% ) [54,62%]
+          69515325 branch-misses             #    0,60% of all branches          ( +-  6,63% ) [54,57%]
+          37776184 cache-references          #    1,885 M/sec                    ( +-  6,35% ) [45,45%]
+           5831199 cache-misses              #   15,436 % of all cache refs      ( +- 13,21% ) [45,55%]
+       12935822627 L1-dcache-loads           #  645,546 M/sec                    ( +-  1,04% ) [36,46%]
+       10368765446 L1-dcache-stores          #  517,440 M/sec                    ( +-  0,85% ) [36,62%]
+   <not supported> L1-icache-loads         
+         113291009 L1-icache-load-misses     #    0,00% of all L1-icache hits    ( +-  4,57% ) [36,68%]
+   <not supported> L1-icache-prefetch      
+   <not supported> L1-icache-prefetch-misses
+
+       3,656078120 seconds time elapsed                                          ( +-  0,58% )
+
+# started on Mon Oct  7 18:04:59 2013
+
+
+ Performance counter stats for 'mpirun -np 8 --hostfile runners.host ./launchMPI 0x4e5bbaeafc82ab7aa1385bea8ef5d30a 5 abcdefghijklmnopqrstuvwxyz 0 0 0' (5 runs):
+
+      12856,532416 task-clock                #    4,799 CPUs utilized            ( +-  2,36% )
+      12856,550320 cpu-clock                                                     ( +-  2,36% )
+            958850 context-switches          #    0,075 M/sec                    ( +- 14,83% )
+                66 cpu-migrations            #    0,005 K/sec                    ( +-  3,11% )
+             22267 page-faults               #    0,002 M/sec                    ( +-  0,03% )
+                 0 alignment-faults          #    0,000 K/sec                  
+       35351726592 cycles                    #    2,750 GHz                      ( +-  2,57% ) [46,02%]
+       21872787319 stalled-cycles-frontend   #   61,87% frontend cycles idle     ( +-  2,73% ) [45,98%]
+       11013595110 stalled-cycles-backend    #   31,15% backend  cycles idle     ( +-  3,29% ) [45,83%]
+       35777562539 instructions              #    1,01  insns per cycle        
+                                             #    0,61  stalled cycles per insn  ( +-  2,59% ) [54,87%]
+        7282503586 branches                  #  566,444 M/sec                    ( +-  2,53% ) [54,66%]
+          46062104 branch-misses             #    0,63% of all branches          ( +-  6,30% ) [54,59%]
+          20192997 cache-references          #    1,571 M/sec                    ( +-  9,19% ) [45,41%]
+           4636286 cache-misses              #   22,960 % of all cache refs      ( +- 16,58% ) [45,68%]
+        8008780467 L1-dcache-loads           #  622,935 M/sec                    ( +-  2,32% ) [36,63%]
+        6345871095 L1-dcache-stores          #  493,591 M/sec                    ( +-  2,37% ) [36,76%]
+   <not supported> L1-icache-loads         
+          74801773 L1-icache-load-misses     #    0,00% of all L1-icache hits    ( +-  3,86% ) [36,85%]
+   <not supported> L1-icache-prefetch      
+   <not supported> L1-icache-prefetch-misses
+
+       2,679207790 seconds time elapsed                                          ( +-  1,73% )
+

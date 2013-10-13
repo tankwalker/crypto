@@ -29,8 +29,6 @@ C_DEPS += \
 common/%.o: ../common/%.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: GCC C Compiler'
-	mpicc $(CFLAGS) -I/home/mpiuser/git/crypto/Crypto/common -I/home/mpiuser/git/crypto/Crypto/sh -I/home/mpiuser/git/crypto/Crypto/mpi -I/usr/lib/gcc/x86_64-unknown-linux-gnu/4.8.0/include -I/usr/include -I/usr/lib/gcc/x86_64-unknown-linux-gnu/4.8.0/include-fixed -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o "$@" "$<"
+	$(CCC) -I/home/mpiuser/git/crypto/Crypto/common -I/home/mpiuser/git/crypto/Crypto/sh -I/home/mpiuser/git/crypto/Crypto/mpi -I/usr/lib/gcc/x86_64-unknown-linux-gnu/4.8.0/include -I/usr/include -I/usr/lib/gcc/x86_64-unknown-linux-gnu/4.8.0/include-fixed -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
-
-

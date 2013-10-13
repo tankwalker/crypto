@@ -167,6 +167,7 @@ int key_gen(int rank, int num_procs, th_parms *ibus) {		//TODO: package dei para
 	int ret, passlen;
 	long chunk, disp, init;
 	allocation *allocs;					/// Struttura per la gestione della memoria allocata dal thread
+	keyspace *kspace;
 
 	comb_parms *parms;					/// Raggruppamento delle successive strutture
 	string_t *cs, *passwd;				/// Stringhe del charset selezionato e della password in chiaro
@@ -205,11 +206,11 @@ int key_gen(int rank, int num_procs, th_parms *ibus) {		//TODO: package dei para
 
 		/* Calcola la combinazione di partenza ed imposta i parametri di lavoro */
 		my_rank = rank;
-		ibus->wterm = 0;
 
-		pthread_cond_wait(&ibus->waiting, &ibus->lock);
-		//init = chunk * my_rank;
-		init = ibus->cid;
+		//kspace = kspace_init(ui->cs, num_procs);
+		disp = DISPOSITIONS(cs->size, passwd->size);
+		chunk = DISP_PER_PROC(disp, num_procs);
+		init = chunk * my_rank;
 
 		starting_point = compute_starting_point(init, cs->size, passwd->size);
 

@@ -1,0 +1,29 @@
+# started on Tue Oct  8 00:39:51 2013
+
+
+ Performance counter stats for './launchMPI 0x4e5bbaeafc82ab7aa1385bea8ef5d30a 5 abcdefghijklmnopqrstuvwxyz 0 0 0' (5 runs):
+
+       5300,076856 task-clock                #    1,987 CPUs utilized            ( +-  0,74% )
+       5300,079603 cpu-clock                                                     ( +-  0,74% )
+               204 context-switches          #    0,038 K/sec                    ( +-  2,44% )
+                 6 cpu-migrations            #    0,001 K/sec                    ( +- 12,91% )
+              4045 page-faults               #    0,763 K/sec                    ( +-  0,01% )
+                 0 alignment-faults          #    0,000 K/sec                  
+       15642525333 cycles                    #    2,951 GHz                      ( +-  0,52% ) [45,48%]
+        5834009284 stalled-cycles-frontend   #   37,30% frontend cycles idle     ( +-  0,84% ) [45,43%]
+        2861957408 stalled-cycles-backend    #   18,30% backend  cycles idle     ( +-  1,36% ) [45,37%]
+       25229341938 instructions              #    1,61  insns per cycle        
+                                             #    0,23  stalled cycles per insn  ( +-  0,40% ) [54,54%]
+        5093763795 branches                  #  961,074 M/sec                    ( +-  0,39% ) [54,55%]
+          17735040 branch-misses             #    0,35% of all branches          ( +-  9,20% ) [54,73%]
+          20434675 cache-references          #    3,856 M/sec                    ( +-  1,78% ) [45,74%]
+            266399 cache-misses              #    1,304 % of all cache refs      ( +- 16,72% ) [45,74%]
+        6180549293 L1-dcache-loads           # 1166,124 M/sec                    ( +-  0,41% ) [36,53%]
+        4879453737 L1-dcache-stores          #  920,638 M/sec                    ( +-  0,37% ) [36,43%]
+   <not supported> L1-icache-loads         
+          15265385 L1-icache-load-misses     #    0,00% of all L1-icache hits    ( +-  2,73% ) [36,36%]
+   <not supported> L1-icache-prefetch      
+   <not supported> L1-icache-prefetch-misses
+
+       2,666963138 seconds time elapsed                                          ( +-  0,84% )
+

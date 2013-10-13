@@ -289,18 +289,12 @@ int listener(th_parms *parms) {
 	char buffer[MAX_PASSWD_LEN];
 	unsigned char alive[num_procs];
 	int flag, quorum;
-	long cid;
-	keyspace *quantum;
 
 	/* Il master inizializza una semplice 'bitmap' per
 	 * tenere traccia dei worker ancora in attività */
 	if(!my_rank){
-		quantum = kspace_init(strlen(ui->cs), ui->passlen);
-
 		for(quorum = 0; quorum < num_procs; ++quorum){
 			alive[quorum] = 1;
-			//id = next_chunk(quantum);
-			//MPI_Send(&id, 1, MPI_LONG, quorum, TAG_QUANTUM, MPI_COMM_WORLD);
 		}
 	}
 
@@ -312,8 +306,17 @@ int listener(th_parms *parms) {
 
 		/* Controllo messaggio terminazione worker da parte del master process*/
 		if(!my_rank){
+
 			MPI_Iprobe(MPI_ANY_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &flag, &status);
 			if(flag){
+				if(alive[status.MPI_SOURCE]){
+					alive[status.MPI_SOURCE] = 0;
+					quorum--;		// Decrementa il numero dei worker ancora in attività
+
+					debug("LST", "Processo %d ha terminato con codice %d\n", status.MPI_SOURCE, flag);
+					debug("LST", "Quorum residuo = %d\n", quorum);
+				}
+
 				/* Ricezione del messaggio di 'fine lavoro' di un worker process */
 				MPI_Recv(&flag, 1, MPI_INT, status.MPI_SOURCE, TAG_COMPLETION, MPI_COMM_WORLD, &status);
 				/* la variabile flag ora contiene l'informanzione se la password è stata rilevata */
@@ -329,22 +332,6 @@ int listener(th_parms *parms) {
 					 * password è stata realmente trovata, questo evento verrà successivamente
 					 * verificato dal solo processo master al ritorno da questa funzione. */
 					term();
-				}
-
-				/* Controlla la possibilità di inviare un altro quanto di lavoro */
-				if((cid = next_chunk(quantum)) > 0){
-					MPI_Send(&cid, 1, MPI_LONG, quorum, TAG_QUANTUM, MPI_COMM_WORLD);
-					debug("LST", "Invio nuovo quanto al processo %d (%d)\n", status.MPI_SOURCE, cid);
-				}
-
-				/* In caso negativo si preoccupa di rimuovere il worker process dalla lista
-				 * dei processi attivi, se non è già stato eliminato */
-				else if(alive[status.MPI_SOURCE]){
-					alive[status.MPI_SOURCE] = 0;
-					quorum--;		// Decrementa il numero dei worker ancora in attività
-
-					debug("LST", "Processo %d ha terminato con codice %d\n", status.MPI_SOURCE, flag);
-					debug("LST", "Quorum residuo = %d\n", quorum);
 				}
 			}
 		}
@@ -369,13 +356,6 @@ int listener(th_parms *parms) {
 				 */
 				debug("LST", "Il processo %d invia la password al master '%s'\n", my_rank, parms->plain);
 				MPI_Send(parms->plain, MAX_PASSWD_LEN, MPI_CHAR, 0, TAG_PLAIN, MPI_COMM_WORLD);
-			}
-
-			else {
-				MPI_Recv(&cid, 1, MPI_LONG, 0, TAG_QUANTUM, MPI_COMM_WORLD, &status);
-				debug("LST", "Processo %d: Ricevuto nuovo quanto (%d)\n", cid);
-				pthread_cond_broadcast(&ibus->waiting);
-				continue;
 			}
 
 			if(my_rank)
