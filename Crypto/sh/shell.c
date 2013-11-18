@@ -124,11 +124,12 @@ void shell() {
 			token = strtok(NULL, " \n");
 
 			if(token == NULL){
-				printf("usage: set [%s | %s | %s | %s] {value}\n", CMD_SET_HASH, CMD_SET_SIZE, CMD_SET_CS, CMD_SET_PROC);
+				printf("usage: set [%s | %s | %s | %s | %s] {value}\n", CMD_SET_HASH, CMD_SET_SIZE_MIN, CMD_SET_SIZE_MAX, CMD_SET_CS, CMD_SET_PROC);
 				continue;
 			}
 
-			if (!strcmp(token, CMD_SET_SIZE)) {
+			// ---- MIN SIZE ----
+			if (!strcmp(token, CMD_SET_SIZE_MIN)) {
 				token = strtok(NULL, " \n");
 
 				ret = (int) strtol(token, NULL, BASE);
@@ -142,6 +143,22 @@ void shell() {
 						ui->passlen);
 			}
 
+			// ---- MAX SIZE ----
+			if (!strcmp(token, CMD_SET_SIZE_MAX)) {
+							token = strtok(NULL, " \n");
+
+							ret = (int) strtol(token, NULL, BASE);
+							if (ret < 1) {
+								printf("La lunghezza della password deve essere maggiore di zero!\n");
+								continue;
+							}
+
+							ui->passlen = ret;
+							printf("Impostata una lunghezza di password di %d\n",
+									ui->passlen);
+						}
+
+			// ---- HASH ----
 			if (!strcmp(token, CMD_SET_HASH)) {
 				token = strtok(NULL, " \n");
 
@@ -164,6 +181,7 @@ void shell() {
 
 			}
 
+			// ---- CS ----
 			if (!strcmp(token, CMD_SET_CS)) {
 				token = strtok(NULL, " \n");
 

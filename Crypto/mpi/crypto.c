@@ -137,6 +137,10 @@ int main(int argc, char *argv[]) {
 
 	debug("MPI", "Libreria MPI finalizzata con successo\n");
 
+	if(!my_rank){
+		debug("CRYPTO", "Password %s: '%s'!\n", ret ? "trovata" : "non trovata", ret ? last_try : "");
+	}
+
 	return 0;
 }
 
@@ -259,13 +263,16 @@ int supervisor() {
 	if(!my_rank){
 		if(strlen(ibus->plain) != 0){
 			pprintf("SV", "La password è '%s'\n", ibus->plain);
+			strcpy(last_try, ibus->plain);
+			ret = 1;
 		}
-		else
+		else {
 			pprintf("SV", "Password non trovata!!!\n");			//TODO: inviare la password in chiaro trovata alla shell
+			ret = 0;
+		}
 	}
 
 	/* Deallocazione strutture dati */
-	//debug("WRK", "Deallocazione strutture dati dedicate ai thread da parte del processo %d\n", my_rank);
 	debug("SV", "Deallocazione strutture dati da parte del processo %d\n", my_rank);
 	pthread_mutex_destroy(&ibus->lock);
 	pthread_cond_destroy(&ibus->waiting);
@@ -275,7 +282,7 @@ int supervisor() {
 	shmdt(ibus);
 	shmctl(shared, IPC_RMID, &shmds);
 
-	return 0;
+	return ret;
 }
 
 
@@ -338,7 +345,7 @@ int listener(th_parms *parms) {
 
 		/* Controllo terminazione worker locale */
 		sem_wait(&parms->mutex);
-		flag = parms->wterm;		//TODO: Il profiling mostra un utilizzo eccessivo di questa istruzione!
+		flag = parms->wterm;		//TODO: Il profiling mostra un utilizzo eccessivo di questa istruzione! (usare wrk_errno in CS?
 		sem_post(&parms->mutex);
 
 		/* TODO: Attenzione la comunicazione del peer della propria termianzione in contemporanea con il segnale di abort invato dal
@@ -365,7 +372,7 @@ int listener(th_parms *parms) {
 		}
 
 		/* Controllo richiesta terminazione asincrona */
-		MPI_Iprobe(0, TAG_ABORT, MPI_COMM_WORLD, &flag, &status);
+			MPI_Iprobe(0, TAG_ABORT, MPI_COMM_WORLD, &flag, &status);
 		if (flag) {
 			/* La shell ha richiesto la terminazione forzata */
 			MPI_Recv(&flag, 1, MPI_INT, 0, TAG_ABORT, MPI_COMM_WORLD, &status);
@@ -397,6 +404,7 @@ void worker(th_parms *parms) {
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	debug("WRK", "Avvio worker thread da parte del processo %d...\n", my_rank);
 
+	flag = 0;
 	switch(attack){
 	case BRUTE_FORCE:
 		flag = key_gen(my_rank, num_procs, parms);
@@ -410,9 +418,10 @@ void worker(th_parms *parms) {
 
 	sem_wait(&parms->mutex);
 	parms->wterm = flag;
+	*wrk_errno = flag;
 	sem_post(&parms->mutex);
 
-	*wrk_errno = flag;
+//	*wrk_errno = flag;
 	pthread_exit(wrk_errno);
 }
 

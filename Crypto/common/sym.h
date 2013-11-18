@@ -18,7 +18,8 @@
 #define PROMPT ">> "
 
 #define CMD_SET_HASH	"hash"
-#define CMD_SET_SIZE	"passlen"
+#define CMD_SET_SIZE_MIN	"minsize"
+#define CMD_SET_SIZE_MAX	"maxsize"
 #define CMD_SET_CS		"cs"
 #define CMD_SET_PROC	"proc"
 #define CMD_AUD		"auditing"
